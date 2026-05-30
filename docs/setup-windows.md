@@ -16,11 +16,13 @@ Create a token file outside the repo, then start app-server:
 codex app-server --listen ws://127.0.0.1:17843 --ws-auth capability-token --ws-token-file C:\Users\shotaro\.codex-peer\codex-peer.token
 ```
 
-Expose it through a TLS tunnel such as Cloudflare Tunnel:
+Current public route for the Windows peer is Cloudflare Tunnel:
 
 ```text
-wss://codex-win.s-original.com -> ws://127.0.0.1:17843
+wss://codex-win.s-original.com -> http://127.0.0.1:17842
 ```
+
+The same app-server can also listen on `127.0.0.1:17843` for direct local checks.
 
 ## 3. Reverse direction
 
@@ -47,3 +49,4 @@ For Windows Codex to call Mac Codex, add a Mac peer in `%USERPROFILE%\.codex-pee
 補足:
 - `wss://`: TLSありのWebSocket。公開経路ではこれを使う。
 - `ws://127.0.0.1`: 同じPC内だけのWebSocket。token送信可。
+- `http://127.0.0.1:17842`: 現行Cloudflare Tunnelのorigin。WebSocket接続時はpublic側の`wss://`からupgradeされる。

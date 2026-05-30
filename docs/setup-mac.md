@@ -45,7 +45,13 @@ Do not put the token value in docs, transcripts, or shared prompts.
 
 ## 4. Peer app-server expectation
 
-The Windows side should expose a TLS WebSocket endpoint that forwards to:
+The Windows side currently exposes this public WebSocket endpoint:
+
+```text
+wss://codex-win.s-original.com -> http://127.0.0.1:17842
+```
+
+For local direct checks, Windows can also run app-server on:
 
 ```powershell
 codex app-server --listen ws://127.0.0.1:17843 --ws-auth capability-token --ws-token-file <token-file>
