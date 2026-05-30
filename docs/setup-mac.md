@@ -24,6 +24,7 @@ Example:
       "label": "Windows Codex",
       "url": "wss://codex-peer-win.s-original.com",
       "authTokenEnv": "CODEX_PEER_WINDOWS_TOKEN",
+      "authTokenFile": "~/.codex-peer/windows.token",
       "defaultCwd": "C:\\Users\\shotaro\\code",
       "platform": "windows"
     }
@@ -35,13 +36,23 @@ Example:
 }
 ```
 
-## 3. Set token env
+## 3. Set token
+
+Preferred for Codex Desktop:
+
+```bash
+mkdir -p ~/.codex-peer
+pbpaste | tr -d '\r\n' > ~/.codex-peer/windows.token
+chmod 600 ~/.codex-peer/windows.token
+```
+
+Optional shell-only override:
 
 ```bash
 export CODEX_PEER_WINDOWS_TOKEN="..."
 ```
 
-Do not put the token value in docs, transcripts, or shared prompts.
+Do not put the token value in docs, transcripts, or shared prompts. `CODEX_PEER_WINDOWS_TOKEN` wins when both the environment variable and `authTokenFile` are set.
 
 ## 4. Peer app-server expectation
 

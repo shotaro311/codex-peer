@@ -24,4 +24,4 @@ The peer is not required to return a fixed `peerStatus`. The receiving Codex rea
 
 ## Token handling
 
-Bearer tokens are read from environment variables. They are never included in returned JSON, warnings, transcripts, or error messages.
+Bearer tokens are read from environment variables first, then token files when `authTokenFile` is configured. They are never included in returned JSON, warnings, transcripts, or error messages.

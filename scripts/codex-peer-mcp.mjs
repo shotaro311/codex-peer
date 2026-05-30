@@ -155,14 +155,40 @@ export function validatePeerConnectionPolicy(peer) {
 }
 
 export function readPeerToken(peer, env = process.env) {
-  if (!peer.authTokenEnv) {
+  if (peer.authTokenEnv) {
+    const token = env[peer.authTokenEnv];
+    if (token) {
+      return token;
+    }
+    if (!peer.authTokenFile) {
+      throw new Error(`Codex peer token env var is not set: ${peer.authTokenEnv}`);
+    }
+  }
+
+  if (!peer.authTokenFile) {
     return null;
   }
-  const token = env[peer.authTokenEnv];
+
+  const tokenPath = resolveTokenFilePath(peer.authTokenFile, env);
+  if (!fs.existsSync(tokenPath)) {
+    throw new Error(`Codex peer token file not found: ${tokenPath}`);
+  }
+  const token = fs.readFileSync(tokenPath, "utf8").trim();
   if (!token) {
-    throw new Error(`Codex peer token env var is not set: ${peer.authTokenEnv}`);
+    throw new Error(`Codex peer token file is empty: ${tokenPath}`);
   }
   return token;
+}
+
+export function resolveTokenFilePath(tokenFile, env = process.env) {
+  if (typeof tokenFile !== "string" || !tokenFile) {
+    throw new Error("Codex peer authTokenFile must be a non-empty string.");
+  }
+  if (tokenFile === "~" || tokenFile.startsWith("~/") || tokenFile.startsWith("~\\")) {
+    const home = env.HOME || env.USERPROFILE || os.homedir();
+    return path.resolve(path.join(home, tokenFile.slice(2)));
+  }
+  return path.resolve(tokenFile);
 }
 
 export class AppServerWsClient {

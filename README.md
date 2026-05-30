@@ -22,6 +22,7 @@ Set `CODEX_PEER_CONFIG` or create `~/.codex-peer/peers.json`.
       "label": "Windows Codex",
       "url": "wss://codex-peer-win.s-original.com",
       "authTokenEnv": "CODEX_PEER_WINDOWS_TOKEN",
+      "authTokenFile": "~/.codex-peer/windows.token",
       "defaultCwd": "C:\\Users\\shotaro\\code",
       "platform": "windows"
     }
@@ -33,7 +34,7 @@ Set `CODEX_PEER_CONFIG` or create `~/.codex-peer/peers.json`.
 }
 ```
 
-The token value is read from the environment variable named by `authTokenEnv`. It is not written to logs or transcripts.
+The token value is read from `authTokenEnv` first, then `authTokenFile` if the environment variable is not set. It is not written to logs or transcripts.
 
 ## Tools
 

@@ -11,6 +11,7 @@ import {
   callPeerWait,
   needsUserCheckForTurns,
   normalizePeerConfig,
+  readPeerToken,
   resolvePeer,
   validatePeerConnectionPolicy
 } from "../scripts/codex-peer-mcp.mjs";
@@ -68,6 +69,44 @@ describe("config", () => {
     assert.throws(
       () => resolvePeer(config, "windows", {}),
       /CODEX_PEER_TEST_TOKEN/
+    );
+  });
+
+  it("reads token files when env vars are not set", () => {
+    const tokenDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-peer-token-"));
+    tempDirs.push(tokenDir);
+    const tokenPath = path.join(tokenDir, "windows.token");
+    fs.writeFileSync(tokenPath, "file-token\n", { mode: 0o600 });
+    const config = normalizePeerConfig({
+      peers: {
+        windows: {
+          url: "wss://example.com",
+          authTokenEnv: "CODEX_PEER_TEST_TOKEN",
+          authTokenFile: tokenPath
+        }
+      }
+    });
+
+    const peer = resolvePeer(config, "windows", {});
+
+    assert.equal(peer.authToken, "file-token");
+  });
+
+  it("prefers token env vars over token files", () => {
+    const tokenDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-peer-token-"));
+    tempDirs.push(tokenDir);
+    const tokenPath = path.join(tokenDir, "windows.token");
+    fs.writeFileSync(tokenPath, "file-token\n", { mode: 0o600 });
+
+    assert.equal(
+      readPeerToken(
+        {
+          authTokenEnv: "CODEX_PEER_TEST_TOKEN",
+          authTokenFile: tokenPath
+        },
+        { CODEX_PEER_TEST_TOKEN: "env-token" }
+      ),
+      "env-token"
     );
   });
 
