@@ -3,7 +3,7 @@
 ## 1. Install dependencies
 
 ```powershell
-cd C:\Users\shota\code\share\codex-peer
+cd C:\Users\shotaro\code\shared\codex-peer
 npm install
 npm run check
 ```
@@ -13,7 +13,7 @@ npm run check
 Create a token file outside the repo, then start app-server:
 
 ```powershell
-codex app-server --listen ws://127.0.0.1:17843 --ws-auth capability-token --ws-token-file C:\Users\shota\.codex-peer\codex-peer.token
+codex app-server --listen ws://127.0.0.1:17843 --ws-auth capability-token --ws-token-file C:\Users\shotaro\.codex-peer\codex-peer.token
 ```
 
 Expose it through a TLS tunnel such as Cloudflare Tunnel:

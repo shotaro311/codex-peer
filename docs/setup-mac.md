@@ -24,7 +24,7 @@ Example:
       "label": "Windows Codex",
       "url": "wss://codex-win.s-original.com",
       "authTokenEnv": "CODEX_PEER_WINDOWS_TOKEN",
-      "defaultCwd": "C:\\Users\\shota\\code",
+      "defaultCwd": "C:\\Users\\shotaro\\code",
       "platform": "windows"
     }
   },
