@@ -20,7 +20,7 @@ Set `CODEX_PEER_CONFIG` or create `~/.codex-peer/peers.json`.
   "peers": {
     "windows": {
       "label": "Windows Codex",
-      "url": "wss://codex-peer-win.s-original.com",
+      "url": "wss://codex-win.s-original.com",
       "authTokenEnv": "CODEX_PEER_WINDOWS_TOKEN",
       "defaultCwd": "C:\\Users\\shota\\code",
       "platform": "windows"

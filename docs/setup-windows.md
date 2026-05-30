@@ -19,7 +19,7 @@ codex app-server --listen ws://127.0.0.1:17843 --ws-auth capability-token --ws-t
 Expose it through a TLS tunnel such as Cloudflare Tunnel:
 
 ```text
-wss://codex-peer-win.s-original.com -> ws://127.0.0.1:17843
+wss://codex-win.s-original.com -> ws://127.0.0.1:17843
 ```
 
 ## 3. Reverse direction
