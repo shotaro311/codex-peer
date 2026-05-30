@@ -22,7 +22,7 @@ Example:
   "peers": {
     "windows": {
       "label": "Windows Codex",
-      "url": "wss://codex-win.s-original.com",
+      "url": "wss://codex-peer-win.s-original.com",
       "authTokenEnv": "CODEX_PEER_WINDOWS_TOKEN",
       "defaultCwd": "C:\\Users\\shotaro\\code",
       "platform": "windows"
@@ -48,10 +48,16 @@ Do not put the token value in docs, transcripts, or shared prompts.
 The Windows side currently exposes this public WebSocket endpoint:
 
 ```text
-wss://codex-win.s-original.com -> http://127.0.0.1:17842
+wss://codex-peer-win.s-original.com -> http://127.0.0.1:17843
 ```
 
-For local direct checks, Windows can also run app-server on:
+The Apple Watch Windows bridge should keep using:
+
+```text
+https://codex-win.s-original.com -> http://127.0.0.1:17842
+```
+
+For local direct checks, Windows runs app-server on:
 
 ```powershell
 codex app-server --listen ws://127.0.0.1:17843 --ws-auth capability-token --ws-token-file <token-file>
