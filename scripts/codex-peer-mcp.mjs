@@ -15,6 +15,8 @@ export const DEFAULT_PROGRESS_CHECK_AFTER_TURNS = 5;
 export const DEFAULT_INITIAL_WAIT_MS = 3000;
 export const DEFAULT_RPC_TIMEOUT_MS = 30000;
 export const DEFAULT_CONNECT_TIMEOUT_MS = 15000;
+export const DEFAULT_WAIT_WINDOW_SECONDS = 7200;
+export const DEFAULT_POLL_INTERVAL_SECONDS = 15;
 
 const TOOL_DEFINITIONS = [
   {
@@ -40,7 +42,15 @@ const TOOL_DEFINITIONS = [
         threadId: { type: "string" },
         cwd: { type: "string" },
         startNewThread: { type: "boolean" },
-        maxResponseChars: { type: "number" }
+        maxResponseChars: { type: "number" },
+        waitForCompletion: {
+          type: "boolean",
+          description: "When true, keep the WebSocket open and return once this turn completes or the quiet wait window ends."
+        },
+        waitWindowSeconds: {
+          type: "number",
+          description: "Quiet wait window. Reaching it returns turnCompleted false, not a task failure."
+        }
       },
       required: ["peerId", "message"],
       additionalProperties: false
@@ -56,6 +66,29 @@ const TOOL_DEFINITIONS = [
         threadId: { type: "string" },
         turnId: { type: "string" },
         maxResponseChars: { type: "number" }
+      },
+      required: ["peerId", "threadId"],
+      additionalProperties: false
+    }
+  },
+  {
+    name: "peer_wait_until_complete",
+    description: "Quietly wait for a previously-started peer turn and return only when it completes or the wait window ends.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        peerId: { type: "string" },
+        threadId: { type: "string" },
+        turnId: { type: "string" },
+        maxResponseChars: { type: "number" },
+        waitWindowSeconds: {
+          type: "number",
+          description: "Quiet wait window. Reaching it returns turnCompleted false, not a task failure."
+        },
+        pollIntervalSeconds: {
+          type: "number",
+          description: "Seconds between internal app-server reads while waiting."
+        }
       },
       required: ["peerId", "threadId"],
       additionalProperties: false
@@ -119,7 +152,9 @@ export function normalizePeerConfig(config) {
       progressCheckAfterTurns: numberOrDefault(
         config.defaults?.progressCheckAfterTurns,
         DEFAULT_PROGRESS_CHECK_AFTER_TURNS
-      )
+      ),
+      waitWindowSeconds: numberOrDefault(config.defaults?.waitWindowSeconds, DEFAULT_WAIT_WINDOW_SECONDS),
+      pollIntervalSeconds: numberOrDefault(config.defaults?.pollIntervalSeconds, DEFAULT_POLL_INTERVAL_SECONDS)
     }
   };
 }
@@ -200,6 +235,7 @@ export class AppServerWsClient {
     this.nextId = 1;
     this.pending = new Map();
     this.notificationHandlers = new Set();
+    this.disconnectHandlers = new Set();
     this.ws = null;
   }
 
@@ -229,8 +265,15 @@ export class AppServerWsClient {
     });
 
     ws.on("message", data => this.#handleMessage(data));
-    ws.on("close", () => this.#rejectAll(new Error("Peer Codex app-server WebSocket closed.")));
-    ws.on("error", error => this.#rejectAll(error));
+    ws.on("close", () => {
+      const error = new Error("Peer Codex app-server WebSocket closed.");
+      this.#rejectAll(error);
+      this.#notifyDisconnected(error);
+    });
+    ws.on("error", error => {
+      this.#rejectAll(error);
+      this.#notifyDisconnected(error);
+    });
   }
 
   async initialize() {
@@ -270,6 +313,11 @@ export class AppServerWsClient {
   onNotification(handler) {
     this.notificationHandlers.add(handler);
     return () => this.notificationHandlers.delete(handler);
+  }
+
+  onDisconnect(handler) {
+    this.disconnectHandlers.add(handler);
+    return () => this.disconnectHandlers.delete(handler);
   }
 
   close() {
@@ -327,6 +375,12 @@ export class AppServerWsClient {
     }
     this.pending.clear();
   }
+
+  #notifyDisconnected(error) {
+    for (const handler of this.disconnectHandlers) {
+      handler(error);
+    }
+  }
 }
 
 export async function callPeerHealth(config, args, options = {}) {
@@ -352,7 +406,9 @@ export async function callPeerMessage(config, args, options = {}) {
   const peer = resolvePeer(config, args.peerId, options.env);
   const client = new AppServerWsClient(peer, options);
   const maxResponseChars = numberOrDefault(args.maxResponseChars, config.defaults.maxResponseChars);
-  const initialWaitMs = numberOrDefault(options.initialWaitMs, DEFAULT_INITIAL_WAIT_MS);
+  const waitMs = args.waitForCompletion
+    ? secondsToMs(args.waitWindowSeconds, config.defaults.waitWindowSeconds)
+    : numberOrDefault(options.initialWaitMs, DEFAULT_INITIAL_WAIT_MS);
   let recorder = null;
   let unsubscribe = null;
   try {
@@ -377,7 +433,7 @@ export async function callPeerMessage(config, args, options = {}) {
     recorder.write("request", { method: "turn/start", threadId, turnId: collector.turnId });
     collector.onEvent = event => recorder.write("notification", event);
 
-    const completed = await collector.waitForCompletion(initialWaitMs);
+    const completed = await waitForCollectorCompletion(client, collector, waitMs);
     const turns = await readTurns(client, threadId, 20).catch(() => []);
     const turn = findTurn(turns, collector.turnId);
     const finalText = buildFinalText(collector.text, turn, maxResponseChars);
@@ -399,7 +455,7 @@ export async function callPeerMessage(config, args, options = {}) {
       latestText: completed ? undefined : finalText,
       transcriptPath: recorder.path,
       needsUserCheck: needsUserCheckForTurns(turnCount, config.defaults.progressCheckAfterTurns),
-      warnings: completed ? [] : ["Peer turn is still running. Use peer_wait or peer_read later."]
+      warnings: completed ? [] : ["Peer turn is still running. Use peer_wait_until_complete or peer_wait later."]
     };
   } finally {
     unsubscribe?.();
@@ -442,6 +498,73 @@ export async function callPeerWait(config, args, options = {}) {
       transcriptPath: recorder.path,
       needsUserCheck: needsUserCheckForTurns(turns.length, config.defaults.progressCheckAfterTurns),
       warnings: completed ? [] : ["Peer turn has not completed yet."]
+    };
+  } finally {
+    recorder?.close();
+    client.close();
+  }
+}
+
+export async function callPeerWaitUntilComplete(config, args, options = {}) {
+  const peer = resolvePeer(config, args.peerId, options.env);
+  const client = new AppServerWsClient(peer, options);
+  const maxResponseChars = numberOrDefault(args.maxResponseChars, config.defaults.maxResponseChars);
+  const waitWindowMs = secondsToMs(args.waitWindowSeconds, config.defaults.waitWindowSeconds);
+  const pollIntervalMs = secondsToMs(args.pollIntervalSeconds, config.defaults.pollIntervalSeconds);
+  const startedAt = Date.now();
+  const deadline = startedAt + waitWindowMs;
+  let recorder = null;
+  let turns = [];
+  let turn = null;
+  let turnId = args.turnId || null;
+  try {
+    await client.initialize();
+    recorder = new TranscriptRecorder(peer.id, args.threadId, turnId || "latest");
+    recorder.write("wait/start", {
+      threadId: args.threadId,
+      turnId,
+      waitWindowSeconds: Math.round(waitWindowMs / 1000),
+      pollIntervalSeconds: Math.round(pollIntervalMs / 1000)
+    });
+
+    while (true) {
+      await client.request("thread/resume", { threadId: args.threadId, excludeTurns: false }).catch(() => null);
+      turns = await readTurns(client, args.threadId, 30);
+      turn = turnId ? findTurn(turns, turnId) : turns[0] || null;
+      turnId = turnId || turn?.id || null;
+
+      if (isTurnCompleted(turn) || Date.now() >= deadline) {
+        break;
+      }
+
+      await sleep(Math.min(pollIntervalMs, Math.max(0, deadline - Date.now())));
+    }
+
+    const finalText = truncate(extractAssistantTextFromTurn(turn), maxResponseChars);
+    const completed = isTurnCompleted(turn);
+    const waitedMs = Date.now() - startedAt;
+
+    recorder.write("wait/result", {
+      threadId: args.threadId,
+      turnId,
+      turnCompleted: completed,
+      turnStatus: turn?.status || null,
+      waitedMs,
+      responseChars: finalText.length
+    });
+
+    return {
+      ok: true,
+      peerId: peer.id,
+      threadId: args.threadId,
+      turnId,
+      turnCompleted: completed,
+      finalText: completed ? finalText : undefined,
+      latestText: completed ? undefined : finalText,
+      waitedMs,
+      transcriptPath: recorder.path,
+      needsUserCheck: needsUserCheckForTurns(turns.length, config.defaults.progressCheckAfterTurns),
+      warnings: completed ? [] : ["Peer turn is still running after the quiet wait window."]
     };
   } finally {
     recorder?.close();
@@ -504,7 +627,7 @@ export function createMcpServer(options = {}) {
         tools: {}
       },
       instructions:
-        "Use Codex Peer for remote Codex collaboration. Do not require peerStatus labels; read peer natural-language reports and decide the next action. Long turns are normal; use peer_wait when peer_message returns turnCompleted false."
+        "Use Codex Peer for remote Codex collaboration. Do not require peerStatus labels; read peer natural-language reports and decide the next action. Long turns are normal; use peer_message with waitForCompletion or peer_wait_until_complete for quiet monitoring, and avoid repeating unchanged in-progress updates to the user."
     }
   );
 
@@ -530,6 +653,7 @@ export async function callToolByName(config, name, args, options = {}) {
   if (name === "peer_health") return callPeerHealth(config, args, options);
   if (name === "peer_message") return callPeerMessage(config, args, options);
   if (name === "peer_wait") return callPeerWait(config, args, options);
+  if (name === "peer_wait_until_complete") return callPeerWaitUntilComplete(config, args, options);
   if (name === "peer_threads") return callPeerThreads(config, args, options);
   if (name === "peer_read") return callPeerRead(config, args, options);
   throw new Error(`Unknown tool: ${name}`);
@@ -745,6 +869,38 @@ export function truncate(value, maxChars = DEFAULT_MAX_RESPONSE_CHARS) {
 function numberOrDefault(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function secondsToMs(value, fallbackSeconds) {
+  return Math.round(numberOrDefault(value, fallbackSeconds) * 1000);
+}
+
+function sleep(ms) {
+  return new Promise(resolve => {
+    const timeout = setTimeout(resolve, ms);
+    timeout.unref?.();
+  });
+}
+
+function waitForCollectorCompletion(client, collector, waitMs) {
+  return new Promise((resolve, reject) => {
+    let unsubscribe = null;
+    const cleanup = () => unsubscribe?.();
+    unsubscribe = client.onDisconnect(error => {
+      cleanup();
+      reject(error);
+    });
+    collector.waitForCompletion(waitMs).then(
+      value => {
+        cleanup();
+        resolve(value);
+      },
+      error => {
+        cleanup();
+        reject(error);
+      }
+    );
+  });
 }
 
 function isLoopbackHost(hostname) {

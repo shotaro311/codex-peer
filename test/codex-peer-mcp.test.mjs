@@ -9,6 +9,7 @@ import {
   callPeerMessage,
   callPeerRead,
   callPeerWait,
+  callPeerWaitUntilComplete,
   needsUserCheckForTurns,
   normalizePeerConfig,
   readPeerToken,
@@ -47,6 +48,8 @@ describe("config", () => {
 
     assert.equal(config.defaults.maxResponseChars, 8000);
     assert.equal(config.defaults.progressCheckAfterTurns, 5);
+    assert.equal(config.defaults.waitWindowSeconds, 7200);
+    assert.equal(config.defaults.pollIntervalSeconds, 15);
   });
 
   it("rejects non-loopback ws URLs", () => {
@@ -160,6 +163,27 @@ describe("peer tools", () => {
     assert.equal(result.latestText, "Working...");
   });
 
+  it("can keep a peer message quiet until completion", async () => {
+    const fake = await startFakeAppServer({ completeDelayMs: 60, reply: "Quiet result." });
+    const config = configFor(fake.url);
+
+    const result = await callPeerMessage(
+      config,
+      {
+        peerId: "windows",
+        message: "Wait quietly.",
+        waitForCompletion: true,
+        waitWindowSeconds: 1
+      },
+      { initialWaitMs: 5 }
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.turnCompleted, true);
+    assert.equal(result.finalText, "Quiet result.");
+    assert.equal(result.latestText, undefined);
+  });
+
   it("resumes existing threads before starting a new turn", async () => {
     const fake = await startFakeAppServer({ reply: "Resumed result." });
     const config = configFor(fake.url);
@@ -199,6 +223,54 @@ describe("peer tools", () => {
 
     assert.equal(waited.turnCompleted, true);
     assert.equal(waited.finalText, "Later result.");
+  });
+
+  it("can quietly wait for a previously running turn until it completes", async () => {
+    const fake = await startFakeAppServer({ completeDelayMs: 80, reply: "Quiet later result." });
+    const config = configFor(fake.url);
+
+    const started = await callPeerMessage(
+      config,
+      { peerId: "windows", message: "Start and wait quietly later." },
+      { initialWaitMs: 5 }
+    );
+    assert.equal(started.turnCompleted, false);
+
+    const waited = await callPeerWaitUntilComplete(config, {
+      peerId: "windows",
+      threadId: started.threadId,
+      turnId: started.turnId,
+      waitWindowSeconds: 1,
+      pollIntervalSeconds: 0.01
+    });
+
+    assert.equal(waited.turnCompleted, true);
+    assert.equal(waited.finalText, "Quiet later result.");
+    assert.ok(waited.waitedMs >= 0);
+  });
+
+  it("returns running after the quiet wait window without failing the task", async () => {
+    const fake = await startFakeAppServer({ completeDelayMs: null, reply: "Still working." });
+    const config = configFor(fake.url);
+
+    const started = await callPeerMessage(
+      config,
+      { peerId: "windows", message: "Start a long task." },
+      { initialWaitMs: 5 }
+    );
+
+    const waited = await callPeerWaitUntilComplete(config, {
+      peerId: "windows",
+      threadId: started.threadId,
+      turnId: started.turnId,
+      waitWindowSeconds: 0.02,
+      pollIntervalSeconds: 0.01
+    });
+
+    assert.equal(waited.ok, true);
+    assert.equal(waited.turnCompleted, false);
+    assert.equal(waited.latestText, "");
+    assert.match(waited.warnings[0], /quiet wait window/);
   });
 
   it("reads recent turns", async () => {

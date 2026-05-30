@@ -4,7 +4,7 @@ Codex Peer talks to `codex app-server` using the app-server WebSocket protocol.
 
 ## Long turns
 
-Long Codex work is normal. `peer_message` waits only briefly for a quick completion. If the peer is still working, it returns:
+Long Codex work is normal. By default, `peer_message` waits only briefly for a quick completion. If the peer is still working, it returns:
 
 ```json
 {
@@ -16,7 +16,11 @@ Long Codex work is normal. `peer_message` waits only briefly for a quick complet
 }
 ```
 
-The caller should use `peer_wait` or `peer_read` later.
+For user-facing checks where the caller should not keep reporting unchanged progress, call `peer_message` with `waitForCompletion: true`, or use `peer_wait_until_complete` with the returned `threadId` and `turnId`.
+
+`waitWindowSeconds` is a local quiet wait window, not a task timeout. If the window ends while the peer is still running, the tool returns `turnCompleted: false` and the same `threadId` / `turnId` can be followed again later.
+
+Use `peer_wait` or `peer_read` when the caller needs only a short snapshot instead of quiet completion tracking.
 
 ## Natural reports
 

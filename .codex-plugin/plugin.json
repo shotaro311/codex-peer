@@ -6,6 +6,7 @@
     "name": "Shotaro"
   },
   "license": "MIT",
+  "repository": "https://github.com/shotaro311/codex-peer",
   "keywords": [
     "codex",
     "peer",
@@ -27,6 +28,7 @@
     "defaultPrompt": [
       "Codex PeerでWindows Codexに相談して",
       "Windows側Codexへremoteで依頼して",
+      "Windows側Codexに依頼して完了まで静かに待って",
       "相手Codexの返答を読んで次のアクションを考えて"
     ],
     "brandColor": "#2563EB"

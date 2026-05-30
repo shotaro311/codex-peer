@@ -55,7 +55,9 @@ npm run check
   },
   "defaults": {
     "maxResponseChars": 8000,
-    "progressCheckAfterTurns": 5
+    "progressCheckAfterTurns": 5,
+    "waitWindowSeconds": 7200,
+    "pollIntervalSeconds": 15
   }
 }
 ```
@@ -87,13 +89,13 @@ Expected:
 5. Send one test message from Windows Codex to Mac Codex:
 
 ```powershell
-node --input-type=module -e "import { callPeerMessage, loadPeerConfig } from './scripts/codex-peer-mcp.mjs'; const r = await callPeerMessage(loadPeerConfig(), { peerId: 'mac', message: '私はWindowsのCodexです。これはMacへのテスト送信です。', startNewThread: true }, { initialWaitMs: 5000 }); console.log(JSON.stringify({ ok: r.ok, threadId: r.threadId, turnId: r.turnId, turnCompleted: r.turnCompleted, finalText: r.finalText, latestText: r.latestText, transcriptPath: r.transcriptPath, warnings: r.warnings }, null, 2));"
+node --input-type=module -e "import { callPeerMessage, loadPeerConfig } from './scripts/codex-peer-mcp.mjs'; const r = await callPeerMessage(loadPeerConfig(), { peerId: 'mac', message: '私はWindowsのCodexです。これはMacへのテスト送信です。', startNewThread: true, waitForCompletion: true, waitWindowSeconds: 120 }); console.log(JSON.stringify({ ok: r.ok, threadId: r.threadId, turnId: r.turnId, turnCompleted: r.turnCompleted, finalText: r.finalText, latestText: r.latestText, transcriptPath: r.transcriptPath, warnings: r.warnings }, null, 2));"
 ```
 
 If `turnCompleted` is `false`, run:
 
 ```powershell
-node --input-type=module -e "import { callPeerWait, loadPeerConfig } from './scripts/codex-peer-mcp.mjs'; const r = await callPeerWait(loadPeerConfig(), { peerId: 'mac', threadId: '<threadId>', turnId: '<turnId>' }); console.log(JSON.stringify({ ok: r.ok, threadId: r.threadId, turnId: r.turnId, turnCompleted: r.turnCompleted, finalText: r.finalText, latestText: r.latestText, transcriptPath: r.transcriptPath, warnings: r.warnings }, null, 2));"
+node --input-type=module -e "import { callPeerWaitUntilComplete, loadPeerConfig } from './scripts/codex-peer-mcp.mjs'; const r = await callPeerWaitUntilComplete(loadPeerConfig(), { peerId: 'mac', threadId: '<threadId>', turnId: '<turnId>', waitWindowSeconds: 120 }); console.log(JSON.stringify({ ok: r.ok, threadId: r.threadId, turnId: r.turnId, turnCompleted: r.turnCompleted, finalText: r.finalText, latestText: r.latestText, transcriptPath: r.transcriptPath, warnings: r.warnings }, null, 2));"
 ```
 
 ## Report back
@@ -106,5 +108,5 @@ Reply with:
 - Whether `codex plugin add` succeeded
 - Windows `%USERPROFILE%\.codex-peer\peers.json` peer IDs
 - `peer_health` result for `mac`
-- test `peer_message` / `peer_wait` result for `mac`
+- test `peer_message` / `peer_wait_until_complete` result for `mac`
 - Any exact errors, with secrets redacted

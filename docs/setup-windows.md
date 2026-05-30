@@ -46,7 +46,9 @@ For Windows Codex to call Mac Codex, add a Mac peer in `%USERPROFILE%\.codex-pee
   },
   "defaults": {
     "maxResponseChars": 8000,
-    "progressCheckAfterTurns": 5
+    "progressCheckAfterTurns": 5,
+    "waitWindowSeconds": 7200,
+    "pollIntervalSeconds": 15
   }
 }
 ```

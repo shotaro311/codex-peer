@@ -31,7 +31,9 @@ Example:
   },
   "defaults": {
     "maxResponseChars": 8000,
-    "progressCheckAfterTurns": 5
+    "progressCheckAfterTurns": 5,
+    "waitWindowSeconds": 7200,
+    "pollIntervalSeconds": 15
   }
 }
 ```

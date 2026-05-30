@@ -1,6 +1,6 @@
 ---
 name: codex-peer
-description: Mac Codex と Windows Codex など、別ホストの Codex app-server へ remote WebSocket 経由で自然会話ベースに依頼・確認したいときに使う。v1はremote専用で、execやローカルLLM要約は使わない。
+description: Mac Codex と Windows Codex など、別ホストの Codex app-server へ remote WebSocket 経由で自然会話ベースに依頼・確認したいときに使う。「Windows側Codexに聞いて」「Codex Peerで相談して」「相手Codexとやりとりして」がトリガー。v1はremote専用で、execやローカルLLM要約は使わない。
 ---
 
 # Codex Peer
@@ -17,19 +17,23 @@ v1では `codex exec` とローカルLLM連携は使いません。共同作業�
 - `peerStatus` のような機械的な完了ラベルを相手Codexに強制しません。
 - `turn/completed` は「相手Codexの今回の返答が終わった」ことだけを意味します。
 - 作業時間だけで失敗扱いしません。1時間以上のturnも正常系として扱います。
-- `peer_message` が `turnCompleted: false` を返したら、`threadId` と `turnId` を使って `peer_wait` または `peer_read` で後から確認します。
+- `peer_message` が `turnCompleted: false` を返したら、`threadId` と `turnId` を使って `peer_wait_until_complete`、`peer_wait`、`peer_read` で後から確認します。
 - 5往復を超えたら、`needsUserCheck` を目安にユーザーへ進捗確認します。単一turnが長いだけでは確認要求にしません。
 
 ## Tool Use
 
 1. `peer_health` で接続確認します。
 2. `peer_message` で相手Codexへ自然文の依頼を送ります。
-3. `turnCompleted: false` の場合は、相手側で作業継続中として `peer_wait` で追跡します。
-4. 返ってきた `finalText` や途中情報を読み、受け取り側Codexが次のアクションを判断します。
+3. ユーザー向けの確認作業では、必要に応じて `peer_message` の `waitForCompletion: true` で完了まで静かに待ちます。
+4. `turnCompleted: false` の場合は、相手側で作業継続中として `peer_wait_until_complete` で静かに追跡します。
+5. `peer_wait` と `peer_read` は、今の状態だけを短く確認したい場合に使います。
+6. 返ってきた `finalText` や途中情報を読み、受け取り側Codexが次のアクションを判断します。
 
 ## Output Style
 
 ユーザーへの報告は、相手Codexの返答をそのまま長く貼りすぎず、要点、次にこちらが取る行動、ユーザー確認が必要な点だけを短くまとめます。
+
+相手turnの待機中は、同じ途中文面をユーザーへ繰り返し報告しません。完了、エラー、ユーザー判断が必要な変化が出た時だけ報告します。
 
 補足:
 - `remote`: Codex app-server の WebSocket 経由で別Codexへ接続する方式。
