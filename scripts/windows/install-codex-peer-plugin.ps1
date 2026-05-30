@@ -6,11 +6,30 @@ param(
 $ErrorActionPreference = "Stop"
 
 $codexHome = Join-Path $env:USERPROFILE ".codex"
-$marketRoot = Join-Path $codexHome ".agents\plugins"
+$marketRoot = $null
+
+try {
+  $marketplaceList = @(codex plugin marketplace list)
+  foreach ($line in $marketplaceList) {
+    if ($line -match "^\s*$([regex]::Escape($MarketplaceName))\s+(.+?)\s*$") {
+      $marketRoot = $Matches[1].Trim()
+      break
+    }
+  }
+} catch {
+  $marketplaceList = @()
+}
+
+if (-not $marketRoot) {
+  $marketRoot = Join-Path $codexHome "plugins"
+}
+
+$marketplaceDir = Join-Path $marketRoot ".agents\plugins"
 $pluginsRoot = Join-Path $marketRoot "plugins"
 $pluginPath = Join-Path $pluginsRoot "codex-peer"
-$marketplacePath = Join-Path $marketRoot "marketplace.json"
+$marketplacePath = Join-Path $marketplaceDir "marketplace.json"
 
+New-Item -ItemType Directory -Force -Path $marketplaceDir | Out-Null
 New-Item -ItemType Directory -Force -Path $pluginsRoot | Out-Null
 
 if (Test-Path $pluginPath) {
@@ -67,6 +86,17 @@ $marketplace.plugins = $plugins
 
 $marketplace | ConvertTo-Json -Depth 12 | Set-Content -Encoding UTF8 $marketplacePath
 
+if (-not ($marketplaceList -match "^\s*$([regex]::Escape($marketplace.name))\s+")) {
+  try {
+    codex plugin marketplace add $marketRoot
+    Write-Output "marketplaceAdd=ok"
+  } catch {
+    Write-Output "marketplaceAdd=failed"
+    Write-Output $_.Exception.Message
+  }
+}
+
+Write-Output "marketRoot=$marketRoot"
 Write-Output "marketplacePath=$marketplacePath"
 Write-Output "pluginPath=$pluginPath"
 Write-Output "marketplaceName=$($marketplace.name)"
