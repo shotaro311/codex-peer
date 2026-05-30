@@ -39,6 +39,7 @@ For Windows Codex to call Mac Codex, add a Mac peer in `%USERPROFILE%\.codex-pee
       "label": "Mac Codex",
       "url": "wss://codex-peer-mac.s-original.com",
       "authTokenEnv": "CODEX_PEER_MAC_TOKEN",
+      "authTokenFile": "C:\\Users\\shotaro\\.codex-peer\\codex-peer.token",
       "defaultCwd": "/Users/shotaro/code",
       "platform": "macos"
     }
