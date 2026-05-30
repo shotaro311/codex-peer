@@ -1,0 +1,21 @@
+{
+  "name": "codex-peer",
+  "version": "0.1.0",
+  "description": "Codex peer remote MCP plugin",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "codex-peer-mcp": "./scripts/codex-peer-mcp.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "npm test && node scripts/validate-plugin.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ws": "^8.21.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

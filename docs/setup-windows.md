@@ -1,0 +1,49 @@
+# Windows Setup
+
+## 1. Install dependencies
+
+```powershell
+cd C:\Users\shota\code\share\codex-peer
+npm install
+npm run check
+```
+
+## 2. Start Codex app-server
+
+Create a token file outside the repo, then start app-server:
+
+```powershell
+codex app-server --listen ws://127.0.0.1:17843 --ws-auth capability-token --ws-token-file C:\Users\shota\.codex-peer\codex-peer.token
+```
+
+Expose it through a TLS tunnel such as Cloudflare Tunnel:
+
+```text
+wss://codex-peer-win.s-original.com -> ws://127.0.0.1:17843
+```
+
+## 3. Reverse direction
+
+For Windows Codex to call Mac Codex, add a Mac peer in `%USERPROFILE%\.codex-peer\peers.json` using the same shape:
+
+```json
+{
+  "peers": {
+    "mac": {
+      "label": "Mac Codex",
+      "url": "wss://codex-peer-mac.s-original.com",
+      "authTokenEnv": "CODEX_PEER_MAC_TOKEN",
+      "defaultCwd": "/Users/shotaro/code",
+      "platform": "macos"
+    }
+  },
+  "defaults": {
+    "maxResponseChars": 8000,
+    "progressCheckAfterTurns": 5
+  }
+}
+```
+
+補足:
+- `wss://`: TLSありのWebSocket。公開経路ではこれを使う。
+- `ws://127.0.0.1`: 同じPC内だけのWebSocket。token送信可。

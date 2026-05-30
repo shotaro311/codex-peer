@@ -1,0 +1,319 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, it } from "node:test";
+import { WebSocketServer } from "ws";
+import {
+  callPeerHealth,
+  callPeerMessage,
+  callPeerRead,
+  callPeerWait,
+  needsUserCheckForTurns,
+  normalizePeerConfig,
+  resolvePeer,
+  validatePeerConnectionPolicy
+} from "../scripts/codex-peer-mcp.mjs";
+
+let servers = [];
+let tempDirs = [];
+
+beforeEach(() => {
+  process.env.CODEX_PEER_RUN_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "codex-peer-runs-"));
+  tempDirs.push(process.env.CODEX_PEER_RUN_DIR);
+});
+
+afterEach(async () => {
+  for (const server of servers.splice(0)) {
+    await new Promise(resolve => server.close(resolve));
+  }
+  for (const dir of tempDirs.splice(0)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  delete process.env.CODEX_PEER_RUN_DIR;
+});
+
+describe("config", () => {
+  it("normalizes defaults", () => {
+    const config = normalizePeerConfig({
+      peers: {
+        windows: {
+          url: "wss://example.com",
+          authTokenEnv: "TOKEN"
+        }
+      }
+    });
+
+    assert.equal(config.defaults.maxResponseChars, 8000);
+    assert.equal(config.defaults.progressCheckAfterTurns, 5);
+  });
+
+  it("rejects non-loopback ws URLs", () => {
+    assert.throws(
+      () => validatePeerConnectionPolicy({ url: "ws://example.com:1234" }),
+      /non-loopback ws/
+    );
+  });
+
+  it("requires configured token env vars without leaking values", () => {
+    const config = normalizePeerConfig({
+      peers: {
+        windows: {
+          url: "wss://example.com",
+          authTokenEnv: "CODEX_PEER_TEST_TOKEN"
+        }
+      }
+    });
+
+    assert.throws(
+      () => resolvePeer(config, "windows", {}),
+      /CODEX_PEER_TEST_TOKEN/
+    );
+  });
+
+  it("marks the fifth peer turn for user check", () => {
+    assert.equal(needsUserCheckForTurns(4, 5), false);
+    assert.equal(needsUserCheckForTurns(5, 5), true);
+  });
+});
+
+describe("peer tools", () => {
+  it("checks peer health", async () => {
+    const fake = await startFakeAppServer();
+    const config = configFor(fake.url);
+
+    const result = await callPeerHealth(config, { peerId: "windows" });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.platformOs, "windows");
+  });
+
+  it("returns finalText when the turn completes quickly", async () => {
+    const fake = await startFakeAppServer({ reply: "Done from Windows." });
+    const config = configFor(fake.url);
+
+    const result = await callPeerMessage(
+      config,
+      { peerId: "windows", message: "Please check health." },
+      { initialWaitMs: 200 }
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.turnCompleted, true);
+    assert.equal(result.finalText, "Done from Windows.");
+    assert.ok(fs.existsSync(result.transcriptPath));
+  });
+
+  it("does not block on long-running turns", async () => {
+    const fake = await startFakeAppServer({ completeDelayMs: null, reply: "Working..." });
+    const config = configFor(fake.url);
+
+    const result = await callPeerMessage(
+      config,
+      { peerId: "windows", message: "Start a long task." },
+      { initialWaitMs: 20 }
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.turnCompleted, false);
+    assert.match(result.threadId, /^thread-/);
+    assert.match(result.turnId, /^turn-/);
+    assert.equal(result.latestText, "Working...");
+  });
+
+  it("can wait for a previously running turn", async () => {
+    const fake = await startFakeAppServer({ completeDelayMs: 80, reply: "Later result." });
+    const config = configFor(fake.url);
+
+    const started = await callPeerMessage(
+      config,
+      { peerId: "windows", message: "Start and finish later." },
+      { initialWaitMs: 5 }
+    );
+    assert.equal(started.turnCompleted, false);
+
+    await sleep(120);
+    const waited = await callPeerWait(config, {
+      peerId: "windows",
+      threadId: started.threadId,
+      turnId: started.turnId
+    });
+
+    assert.equal(waited.turnCompleted, true);
+    assert.equal(waited.finalText, "Later result.");
+  });
+
+  it("reads recent turns", async () => {
+    const fake = await startFakeAppServer({ reply: "Readable result." });
+    const config = configFor(fake.url);
+    const sent = await callPeerMessage(
+      config,
+      { peerId: "windows", message: "Create readable thread." },
+      { initialWaitMs: 200 }
+    );
+
+    const read = await callPeerRead(config, {
+      peerId: "windows",
+      threadId: sent.threadId
+    });
+
+    assert.equal(read.ok, true);
+    assert.equal(read.turns.length, 1);
+    assert.equal(read.finalText, "Readable result.");
+  });
+});
+
+function configFor(url) {
+  return normalizePeerConfig({
+    peers: {
+      windows: {
+        label: "Windows Codex",
+        url,
+        defaultCwd: "C:\\Users\\shota\\code",
+        platform: "windows"
+      }
+    },
+    defaults: {
+      maxResponseChars: 8000,
+      progressCheckAfterTurns: 5
+    }
+  });
+}
+
+async function startFakeAppServer(options = {}) {
+  const state = {
+    nextThread: 1,
+    nextTurn: 1,
+    threads: new Map(),
+    reply: options.reply || "Fake reply.",
+    completeDelayMs: options.completeDelayMs === undefined ? 5 : options.completeDelayMs
+  };
+  const server = new WebSocketServer({ port: 0 });
+  servers.push(server);
+
+  server.on("connection", socket => {
+    socket.on("message", data => {
+      const message = JSON.parse(String(data));
+      handleFakeMessage(socket, state, message);
+    });
+  });
+
+  await new Promise(resolve => server.once("listening", resolve));
+  const { port } = server.address();
+  return { server, url: `ws://127.0.0.1:${port}` };
+}
+
+function handleFakeMessage(socket, state, message) {
+  const respond = result => socket.send(JSON.stringify({ id: message.id, result }));
+
+  if (message.method === "initialize") {
+    respond({
+      userAgent: "fake-codex",
+      codexHome: "C:\\Users\\shota\\.codex",
+      platformFamily: "windows",
+      platformOs: "windows"
+    });
+    return;
+  }
+
+  if (message.method === "thread/start") {
+    const thread = {
+      id: `thread-${state.nextThread++}`,
+      cwd: message.params.cwd || null,
+      preview: "",
+      name: null,
+      createdAt: Date.now() / 1000,
+      updatedAt: Date.now() / 1000,
+      status: { type: "idle" },
+      turns: []
+    };
+    state.threads.set(thread.id, thread);
+    respond({ thread });
+    return;
+  }
+
+  if (message.method === "turn/start") {
+    const thread = state.threads.get(message.params.threadId);
+    const turn = {
+      id: `turn-${state.nextTurn++}`,
+      items: [{
+        type: "userMessage",
+        id: "user-1",
+        content: message.params.input
+      }],
+      status: "inProgress",
+      error: null,
+      startedAt: Date.now() / 1000,
+      completedAt: null,
+      durationMs: null
+    };
+    thread.turns.unshift(turn);
+    thread.status = { type: "active", activeFlags: [] };
+    respond({ turn: { id: turn.id } });
+    setTimeout(() => {
+      socket.send(JSON.stringify({
+        method: "turn/started",
+        params: { threadId: thread.id, turn: { id: turn.id } }
+      }));
+      socket.send(JSON.stringify({
+        method: "item/agentMessage/delta",
+        params: { threadId: thread.id, turnId: turn.id, itemId: "agent-1", delta: state.reply }
+      }));
+    }, 0);
+    if (state.completeDelayMs !== null) {
+      setTimeout(() => {
+        turn.items.push({
+          type: "agentMessage",
+          id: "agent-1",
+          text: state.reply,
+          phase: null,
+          memoryCitation: null
+        });
+        turn.status = "completed";
+        turn.completedAt = Date.now() / 1000;
+        turn.durationMs = 1;
+        thread.status = { type: "idle" };
+        socket.send(JSON.stringify({
+          method: "turn/completed",
+          params: { threadId: thread.id, turn: { id: turn.id, status: "completed" } }
+        }));
+      }, state.completeDelayMs);
+    }
+    return;
+  }
+
+  if (message.method === "thread/resume") {
+    respond({ thread: state.threads.get(message.params.threadId) });
+    return;
+  }
+
+  if (message.method === "thread/turns/list") {
+    const thread = state.threads.get(message.params.threadId);
+    respond({
+      data: (thread?.turns || []).slice(0, message.params.limit || 20),
+      nextCursor: null,
+      backwardsCursor: null
+    });
+    return;
+  }
+
+  if (message.method === "thread/read") {
+    respond({ thread: state.threads.get(message.params.threadId) || null });
+    return;
+  }
+
+  if (message.method === "thread/list") {
+    respond({
+      data: [...state.threads.values()].map(thread => ({ ...thread, turns: [] })),
+      nextCursor: null,
+      backwardsCursor: null
+    });
+    return;
+  }
+
+  respond({});
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}

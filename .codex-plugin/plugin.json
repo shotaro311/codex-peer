@@ -1,0 +1,35 @@
+{
+  "name": "codex-peer",
+  "version": "0.1.0",
+  "description": "Connect one local Codex session to a peer Codex app-server over remote WebSocket.",
+  "author": {
+    "name": "Shotaro"
+  },
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "peer",
+    "remote",
+    "app-server",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Peer",
+    "shortDescription": "Codex同士をremoteで自然会話接続する",
+    "longDescription": "Mac Codex と Windows Codex など、別ホストの Codex app-server へ remote WebSocket 経由で自然文の依頼を送り、長時間turnも正常系として追跡するためのローカルCodexプラグインです。v1はremote専用で、execやローカルLLM要約は含みません。",
+    "developerName": "Shotaro",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read"
+    ],
+    "defaultPrompt": [
+      "Codex PeerでWindows Codexに相談して",
+      "Windows側Codexへremoteで依頼して",
+      "相手Codexの返答を読んで次のアクションを考えて"
+    ],
+    "brandColor": "#2563EB"
+  },
+  "mcpServers": "./.mcp.json"
+}
