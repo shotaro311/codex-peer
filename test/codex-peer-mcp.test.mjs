@@ -160,6 +160,25 @@ describe("peer tools", () => {
     assert.equal(result.latestText, "Working...");
   });
 
+  it("resumes existing threads before starting a new turn", async () => {
+    const fake = await startFakeAppServer({ reply: "Resumed result." });
+    const config = configFor(fake.url);
+    const first = await callPeerMessage(
+      config,
+      { peerId: "windows", message: "Create thread." },
+      { initialWaitMs: 200 }
+    );
+
+    const second = await callPeerMessage(
+      config,
+      { peerId: "windows", threadId: first.threadId, message: "Continue thread." },
+      { initialWaitMs: 200 }
+    );
+
+    assert.equal(second.turnCompleted, true);
+    assert.equal(fake.state.resumeCalls, 1);
+  });
+
   it("can wait for a previously running turn", async () => {
     const fake = await startFakeAppServer({ completeDelayMs: 80, reply: "Later result." });
     const config = configFor(fake.url);
@@ -225,7 +244,8 @@ async function startFakeAppServer(options = {}) {
     nextTurn: 1,
     threads: new Map(),
     reply: options.reply || "Fake reply.",
-    completeDelayMs: options.completeDelayMs === undefined ? 5 : options.completeDelayMs
+    completeDelayMs: options.completeDelayMs === undefined ? 5 : options.completeDelayMs,
+    resumeCalls: 0
   };
   const server = new WebSocketServer({ port: 0 });
   servers.push(server);
@@ -239,7 +259,7 @@ async function startFakeAppServer(options = {}) {
 
   await new Promise(resolve => server.once("listening", resolve));
   const { port } = server.address();
-  return { server, url: `ws://127.0.0.1:${port}` };
+  return { server, state, url: `ws://127.0.0.1:${port}` };
 }
 
 function handleFakeMessage(socket, state, message) {
@@ -322,6 +342,7 @@ function handleFakeMessage(socket, state, message) {
   }
 
   if (message.method === "thread/resume") {
+    state.resumeCalls += 1;
     respond({ thread: state.threads.get(message.params.threadId) });
     return;
   }

@@ -358,6 +358,9 @@ export async function callPeerMessage(config, args, options = {}) {
   try {
     await client.initialize();
     const threadId = await ensureThread(client, peer, args);
+    if (args.threadId && !args.startNewThread) {
+      await client.request("thread/resume", { threadId, excludeTurns: false }).catch(() => null);
+    }
     const collector = createTurnCollector(threadId);
     unsubscribe = client.onNotification((method, params) => collector.handle(method, params));
 
