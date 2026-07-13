@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -933,7 +933,11 @@ async function main() {
   await server.connect(transport);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+export function isMainModule(moduleUrl, argvPath) {
+  return Boolean(argvPath) && moduleUrl === pathToFileURL(argvPath).href;
+}
+
+if (isMainModule(import.meta.url, process.argv[1])) {
   main().catch(error => {
     console.error(safeErrorMessage(error));
     process.exitCode = 1;

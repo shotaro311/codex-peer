@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { WebSocketServer } from "ws";
 import {
@@ -10,6 +11,7 @@ import {
   callPeerRead,
   callPeerWait,
   callPeerWaitUntilComplete,
+  isMainModule,
   needsUserCheckForTurns,
   normalizePeerConfig,
   readPeerToken,
@@ -36,6 +38,13 @@ afterEach(async () => {
 });
 
 describe("config", () => {
+  it("detects the executable module from a Windows filesystem path", () => {
+    const executablePath = path.resolve("scripts", "codex-peer-mcp.mjs");
+
+    assert.equal(isMainModule(pathToFileURL(executablePath).href, executablePath), true);
+    assert.equal(isMainModule("file:///different/module.mjs", executablePath), false);
+  });
+
   it("normalizes defaults", () => {
     const config = normalizePeerConfig({
       peers: {

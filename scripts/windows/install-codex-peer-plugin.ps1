@@ -33,9 +33,14 @@ New-Item -ItemType Directory -Force -Path $marketplaceDir | Out-Null
 New-Item -ItemType Directory -Force -Path $pluginsRoot | Out-Null
 
 if (Test-Path $pluginPath) {
-  $existing = Get-Item $pluginPath
+  $existing = Get-Item $pluginPath -Force
   if ($existing.LinkType -eq "Junction" -or $existing.LinkType -eq "SymbolicLink") {
-    Remove-Item $pluginPath -Force
+    $existingTarget = @($existing.Target)[0]
+    $sameTarget = $existingTarget -and
+      ([IO.Path]::GetFullPath($existingTarget).TrimEnd('\') -eq [IO.Path]::GetFullPath($RepoRoot).TrimEnd('\'))
+    if (-not $sameTarget) {
+      [IO.Directory]::Delete($pluginPath)
+    }
   } elseif ($existing.FullName -ne $RepoRoot) {
     throw "Plugin path already exists and is not a junction: $pluginPath"
   }
@@ -84,11 +89,15 @@ $plugins = @($marketplace.plugins | Where-Object { $_.name -ne "codex-peer" })
 $plugins += $entry
 $marketplace.plugins = $plugins
 
-$marketplace | ConvertTo-Json -Depth 12 | Set-Content -Encoding UTF8 $marketplacePath
+$marketplaceJson = $marketplace | ConvertTo-Json -Depth 12
+[IO.File]::WriteAllText($marketplacePath, $marketplaceJson, [Text.UTF8Encoding]::new($false))
 
 if (-not ($marketplaceList -match "^\s*$([regex]::Escape($marketplace.name))\s+")) {
   try {
-    codex plugin marketplace add $marketRoot
+    & codex plugin marketplace add $marketRoot
+    if ($LASTEXITCODE -ne 0) {
+      throw "codex plugin marketplace add failed with exit code $LASTEXITCODE"
+    }
     Write-Output "marketplaceAdd=ok"
   } catch {
     Write-Output "marketplaceAdd=failed"
@@ -102,7 +111,10 @@ Write-Output "pluginPath=$pluginPath"
 Write-Output "marketplaceName=$($marketplace.name)"
 
 try {
-  codex plugin add "codex-peer@$($marketplace.name)"
+  & codex plugin add "codex-peer@$($marketplace.name)"
+  if ($LASTEXITCODE -ne 0) {
+    throw "codex plugin add failed with exit code $LASTEXITCODE"
+  }
   Write-Output "pluginAdd=ok"
 } catch {
   Write-Output "pluginAdd=failed"
