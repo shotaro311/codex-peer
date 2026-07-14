@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "codex_peer": {
+      "command": "node",
+      "args": [
+        "dist/codex-peer-mcp.mjs"
+      ],
+      "cwd": ".",
+      "startup_timeout_sec": 30,
+      "tool_timeout_sec": 7500
+    }
+  }
+}
