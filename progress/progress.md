@@ -2,7 +2,7 @@
 project_slug: codex-peer
 updated: 2026-07-14
 updated_by: codex
-status: release_preparation
+status: released
 ---
 
 # Project Progress: codex-peer
@@ -15,7 +15,7 @@ status: release_preparation
 
 ## 最新の検証済み状態
 
-- 公開準備は隔離worktreeの `codex/oss-release-prep` ブランチで実施中。
+- 公開作業は隔離worktreeの `codex/oss-release-prep` ブランチで実施した。
 - MCP本体を `dist/codex-peer-mcp.mjs` にbundleし、利用者側の `npm install` を不要にした。
 - 外部 `wss://` 接続はtoken必須、非loopback `ws://` は拒否、URL内credential / query / fragmentも拒否する。
 - peer turnの `completed` / `failed` / `interrupted` を分離し、失敗turnは `ok: false` として返す。
@@ -27,24 +27,28 @@ status: release_preparation
 - 公開候補branchを一時directoryへ展開し、`npm ci` から全検証を再実行して成功した。
 - Mac→Windowsのprojectless taskを公開候補コードで実行し、`completed / true`を確認した。
 - Windows→Macのprojectless taskも`completed / true`を確認した。Mac app-serverは旧Codex実行ファイルからChatGPT app同梱`codex-peer/0.144.2`へ更新した。
+- 公開repo `https://github.com/shotaro311/codex-peer` を旧private履歴とは別のrepository IDで作成し、クリーンなroot commitだけを公開した。
+- `v0.1.0` tag / GitHub Releaseを公開し、Marketplace sourceを`v0.1.0`へ固定した。
+- GitHub private vulnerability reporting、secret scanning、push protection、Dependabot security updatesを有効化した。
+- 公開MarketplaceからMac / Windowsの両方へ`codex-peer@codex-peer`をインストールし、version、bundle、validator、source refをreadbackした。
 
-## 進行中
+## 公開状態
 
-- README、汎用setup、security、troubleshooting、contributing、Marketplace metadataを公開用に整理。
-- 既存の個人環境専用runbookとone-off handoff文書はOSS配布物から除外。
+- Repository: `https://github.com/shotaro311/codex-peer`
+- Release: `https://github.com/shotaro311/codex-peer/releases/tag/v0.1.0`
+- 旧履歴: private / archivedの`shotaro311/codex-peer-private-history`とlocal git bundleで保持。
+- Mac installed cache: public Marketplace版`0.1.0`、bundle hash一致、6 tools / Windows health成功。
+- Windows installed cache: public Marketplace版`0.1.0`、bundle直接load、plugin / skill validator成功。
 
 ## 次アクション
 
-- 公開直前にリポジトリ内容と履歴のsecret scanを行う。
-- GitHubのprivate vulnerability reportingを有効化する。
-- ユーザー確認後にrepositoryをpublic化し、`v0.1.0` tag / releaseを作成する。
-- `codex/public-v0.1.0` を公開先のmainとして反映し、Git URLからMarketplace追加とplugin installを再検証する。
+- 新しいCodex taskで公開版Skill / MCPの表示を確認する。
+- issue / vulnerability report / app-server互換性変更を監視する。
+- 次回リリースではversion bump、tag固定、Mac / Windows再インストール、fresh task確認を同じ順で行う。
 
 ## Blocker / Risk
 
-- Codex app-server WebSocket APIはexperimentalで、互換性が変わる可能性がある。
-- repositoryは現時点でprivate。public化、tag、releaseはまだ実施していない。
-- GitHub Marketplaceの公開URLからのinstallはpublic化後にのみ検証できる。
+- Codex app-server WebSocket APIはexperimentalで、互換性が変わる可能性があるため、Codex更新時は双方向smoke testを再実行する。
 - token値、private hostname、個人path、private thread本文をrepositoryやprogressへ入れない。
 
 ## 重要パス
