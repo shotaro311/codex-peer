@@ -34,6 +34,7 @@ status: released
 - `README.md`を日本語・英語の両対応にし、日本語を先頭へ配置した。
 - 非エンジニア向けに用途、利用例、公式機能との使い分け、導入条件、安全上の注意、現在の制限を平易に説明した。
 - Claude CodeからCodexへ依頼する用途と、Claude Code側では公式Plugin / MCP仕様へ合わせて導入する注意をREADMEへ追加した。
+- Claude Codeから同じパソコンまたは別のパソコンのCodexへ依頼できることをREADMEへ明記した。
 - CodexまたはClaude Codeへrepositoryを渡し、環境確認から安全な接続テストまで導入を任せる推奨手順をREADMEへ追加した。
 
 ## 公開状態
