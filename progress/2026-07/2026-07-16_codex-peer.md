@@ -21,6 +21,10 @@ updated_by: codex
 - ワンクリック導入ではなく、Codex CLI、Node.js 22以降、SSH転送または認証付きWSS、初回のターミナル設定が必要であることを明記した。
 - 認証トークン、app-server公開範囲、会話記録の既定値に関する安全上の注意を追加した。
 - 提供中の6 toolsを日本語で説明した。
+- Claude CodeからCodexへ依頼できる用途を追加した。
+- Claude Codeへ導入する場合は、Codex向けコマンドを流用せず、Claude Code公式のPluginまたはMCP仕様へ合わせる注意書きを追加した。
+- 非エンジニア向けに、CodexまたはClaude Codeへrepository URLを渡して環境確認から導入・接続テストまで依頼する方法と、コピー用の依頼文を追加した。
+- AIへ導入を任せる場合もtokenを会話へ貼らず、router / firewall / external service変更を事前確認する注意を追加した。
 
 ## リリース判断
 
@@ -35,6 +39,7 @@ updated_by: codex
 - skill validator
 - Markdown内のローカルリンク確認
 - `git diff --check`
+- Claude Code公式のPlugin / MCP資料とREADME記載内容の照合
 
 ## 次
 

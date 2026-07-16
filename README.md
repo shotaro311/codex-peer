@@ -6,11 +6,11 @@
 
 ### Codex Peerとは
 
-Codex Peerは、**別々のパソコンで動いているCodex同士をつなぐプラグイン**です。
+Codex Peerは、**別々のパソコンで動いているCodex同士、またはClaude CodeとCodexをつなぐプラグイン**です。
 
 たとえば、Mac側のCodexからWindows側のCodexへ「Windowsにしかないファイルを確認して」「Windows側で新しいタスクを始めて」と依頼できます。Windows側のCodexが作業し、結果をMac側へ返します。逆方向のWindowsからMacへの依頼にも対応します。
 
-人間が別のパソコンへ移動して同じ指示を入力し直す代わりに、Codex同士の連絡係として動くイメージです。
+人間が別のパソコンへ移動して同じ指示を入力し直す代わりに、CodexやClaude Codeが相手側のCodexへ連絡するイメージです。
 
 > [!WARNING]
 > Codex Peerは開発者向けプレビュー版です。Codexの実験的なapp-server WebSocket APIを使っているため、Codexの更新によって動作しなくなる可能性があります。
@@ -19,6 +19,7 @@ Codex Peerは、**別々のパソコンで動いているCodex同士をつなぐ
 
 - MacのCodexからWindowsのCodexへ依頼する
 - WindowsのCodexからMacのCodexへ依頼する
+- Claude Codeから別のパソコンで動くCodexへ依頼する（Claude Code側の導入設定が必要）
 - 相手のパソコンにしかないファイル、アプリ、設定を調べてもらう
 - プロジェクトフォルダを指定せず、相手側で通常の新しいタスクを始める
 - 時間のかかる作業が終わるまで待ち、結果を受け取る
@@ -31,6 +32,11 @@ Codex Peerは、**別々のパソコンで動いているCodex同士をつなぐ
 > Windows側で今日会話したタスクを一覧にしてください。
 >
 > Macにしかないプロジェクトを確認し、テスト結果をこちらへ報告してください。
+>
+> Claude CodeからWindows側のCodexへ、Windows固有の設定確認を依頼してください。
+
+> [!IMPORTANT]
+> このリポジトリはCodex Pluginとして配布しています。Claude Codeから使う場合は、Codex向けのインストールコマンドをそのまま使うのではなく、Claude Code公式のPlugin仕様またはMCP設定仕様に合わせて導入してください。Claude CodeのPluginでは`.claude-plugin/plugin.json`などの構成、MCPでは`claude mcp`コマンドや`.mcp.json`など、Claude Code側の現在の仕様に準拠する必要があります。現在のリリースには、Claude Code向けのワンコマンドインストーラーは含まれていません。
 
 ### できないこと
 
@@ -45,19 +51,30 @@ Codex Peerはリモートデスクトップではありません。相手側のC
 
 Codexの標準リモート機能だけで目的を達成できる場合は、標準機能を優先してください。
 
-Codex Peerは、**2台以上のパソコンでそれぞれCodexを動かし、Codex同士が対等に依頼を送り合う必要がある場合**に向いています。特に、相手側のローカル環境を調べる作業や、MacとWindowsの双方向連携を一つの方法でそろえたい場合に役立ちます。
+Codex Peerは、**2台以上のパソコンでCodexを使い、別のCodexまたはClaude Codeから相手側のCodexへ依頼する必要がある場合**に向いています。特に、相手側のローカル環境を調べる作業や、MacとWindowsの双方向連携を一つの方法でそろえたい場合に役立ちます。
 
 ### 利用前に必要なもの
 
 - 2台以上のパソコン
-- それぞれのパソコンにCodex CLI
-- Node.js 22以降
+- 依頼を受けるパソコンにCodex CLI
+- 依頼を送るパソコンにCodexまたはClaude Code
+- Codex Peerを動かすパソコンにNode.js 22以降
 - パソコン同士を安全につなぐSSH転送、または認証付きの`wss://`接続
 - 初回設定のためのターミナル操作
 
 現在はワンクリックで使い始められる製品ではありません。ネットワークと認証の初期設定が必要です。一度設定すれば、その後はCodexへ自然な言葉で相手側への依頼を頼めます。
 
-### インストール
+### おすすめの導入方法
+
+ターミナル設定に慣れていない場合は、**CodexまたはClaude Codeへ、このリポジトリを自分の環境へ導入するよう依頼する方法がおすすめ**です。
+
+利用するパソコンごとにCodexまたはClaude Codeを開き、次の依頼文を渡してください。
+
+> https://github.com/shotaro311/codex-peer のREADME、`docs/setup.md`、`docs/security.md`を読み、私のパソコン環境を確認したうえでCodex Peerを導入してください。Codexへ入れる場合はCodex Plugin仕様、Claude Codeへ入れる場合はClaude CodeのPluginまたはMCP仕様に準拠してください。app-serverはlocalhostだけで待ち受け、パソコン間の接続にはSSH転送または認証付きWSSを使ってください。認証トークンは画面やログへ表示せず、最後に`peer_health`と安全なテスト依頼で接続を確認してください。ルーター、ファイアウォール、外部サービスの変更が必要な場合は、変更前に内容を説明してください。
+
+AIに任せる場合でも、認証トークンを会話へ貼り付けず、表示された変更内容と接続テスト結果を確認してください。
+
+### Codexへのインストール
 
 ターミナルで次のコマンドを実行します。
 
@@ -69,6 +86,8 @@ codex plugin add codex-peer@codex-peer
 利用者側で`npm install`を実行する必要はありません。
 
 インストール後は、依頼を受ける側のパソコンでCodex app-serverを起動し、SSH転送または認証付きWSS接続を設定します。詳しい手順は[セットアップガイド（英語）](docs/setup.md)を参照してください。
+
+Claude Codeへ導入する場合は、前述の注意書きに従い、[Claude Code Plugin仕様](https://code.claude.com/docs/en/plugins)または[Claude Code MCP仕様](https://code.claude.com/docs/en/mcp)に合わせて設定してください。
 
 ### 安全上の注意
 
@@ -127,14 +146,16 @@ npm audit --omit=dev
 
 - [Codex plugins](https://learn.chatgpt.com/docs/build-plugins.md)
 - [Codex app-server](https://learn.chatgpt.com/docs/app-server.md)
+- [Claude Code plugins](https://code.claude.com/docs/en/plugins)
+- [Claude Code MCP](https://code.claude.com/docs/en/mcp)
 
 ---
 
 ## English
 
-Codex Peer lets one Codex instance send a task to another Codex instance running on a different computer, then follow the resulting thread until it finishes.
+Codex Peer lets one Codex instance, or Claude Code acting as an MCP client, send a task to a Codex instance running on a different computer and follow the resulting thread until it finishes.
 
-It is aimed at people who actively use Codex on two or more machines and need symmetric host-to-host collaboration, including projectless tasks and work that depends on the peer computer's local environment.
+It is aimed at people who use Codex across two or more machines, optionally alongside Claude Code, and need host-to-host collaboration for projectless tasks or work that depends on the peer computer's local environment.
 
 > [!WARNING]
 > Codex Peer is a Developer Preview. It uses the experimental Codex app-server WebSocket API, which may change without backward compatibility.
@@ -146,11 +167,23 @@ Use Codex's native remote features first when they cover the workflow. Codex Pee
 - start or continue a projectless task;
 - inspect files, applications, or state that exist only on that computer;
 - exchange natural-language task reports with the calling Codex;
-- work in either direction, such as Mac to Windows and Windows to Mac.
+- work in either direction, such as Mac to Windows and Windows to Mac;
+- ask a Codex running on another computer to perform work from Claude Code.
 
 Codex Peer does not provide remote desktop control. The peer Codex can only do what its own tools, permissions, and local environment allow.
 
-### Install
+> [!IMPORTANT]
+> This repository is distributed as a Codex plugin. To use it from Claude Code, do not reuse the Codex installation commands unchanged. Package or configure the bundled MCP server according to the current Claude Code plugin or MCP specification. Claude Code plugins use structures such as `.claude-plugin/plugin.json`, while standalone MCP setup uses Claude Code's `claude mcp` commands or `.mcp.json` format. The current release does not include a one-command installer for Claude Code.
+
+### Recommended setup
+
+If you are not comfortable with terminal and network configuration, ask Codex or Claude Code to install Codex Peer for your environment. Open the agent on each computer that will participate and provide this prompt:
+
+> Read the README, `docs/setup.md`, and `docs/security.md` at https://github.com/shotaro311/codex-peer, inspect my computer environment, and install Codex Peer. Follow the Codex plugin specification when installing it in Codex, or the Claude Code plugin or MCP specification when installing it in Claude Code. Keep app-server bound to localhost, connect the computers through SSH forwarding or authenticated WSS, never display authentication tokens, and verify the result with `peer_health` and a harmless test task. Explain any router, firewall, or external-service change before making it.
+
+Do not paste authentication tokens into the conversation. Review the proposed changes and the connection-test result even when an AI performs the setup.
+
+### Install in Codex
 
 Node.js 22 or later and the Codex CLI are required.
 
@@ -162,6 +195,8 @@ codex plugin add codex-peer@codex-peer
 The repository contains a bundled MCP server, so plugin users do not need to run `npm install`.
 
 Continue with [Setup](docs/setup.md). Keep the app-server on loopback unless you have a TLS-protected and authenticated network route.
+
+For Claude Code, configure the bundled server according to the [Claude Code plugin specification](https://code.claude.com/docs/en/plugins) or [Claude Code MCP specification](https://code.claude.com/docs/en/mcp), as described in the note above.
 
 ### Tools
 
@@ -204,3 +239,5 @@ See [Troubleshooting](docs/troubleshooting.md), [Contributing](CONTRIBUTING.md),
 
 - [Codex plugins](https://learn.chatgpt.com/docs/build-plugins.md)
 - [Codex app-server](https://learn.chatgpt.com/docs/app-server.md)
+- [Claude Code plugins](https://code.claude.com/docs/en/plugins)
+- [Claude Code MCP](https://code.claude.com/docs/en/mcp)
