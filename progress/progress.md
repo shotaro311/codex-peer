@@ -1,6 +1,6 @@
 ---
 project_slug: codex-peer
-updated: 2026-07-14
+updated: 2026-07-16
 updated_by: codex
 status: released
 ---
@@ -31,6 +31,8 @@ status: released
 - `v0.1.0` tag / GitHub Releaseを公開し、Marketplace sourceを`v0.1.0`へ固定した。
 - GitHub private vulnerability reporting、secret scanning、push protection、Dependabot security updatesを有効化した。
 - 公開MarketplaceからMac / Windowsの両方へ`codex-peer@codex-peer`をインストールし、version、bundle、validator、source refをreadbackした。
+- `README.md`を日本語・英語の両対応にし、日本語を先頭へ配置した。
+- 非エンジニア向けに用途、利用例、公式機能との使い分け、導入条件、安全上の注意、現在の制限を平易に説明した。
 
 ## 公開状態
 
@@ -63,4 +65,5 @@ status: released
 
 ## 詳細ログ
 
+- [2026-07-16](2026-07/2026-07-16_codex-peer.md)
 - [2026-07-14](2026-07/2026-07-14_codex-peer.md)
