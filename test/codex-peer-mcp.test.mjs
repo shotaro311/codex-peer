@@ -440,7 +440,7 @@ function configFor(url, defaults = {}) {
       windows: {
         label: "Windows Codex",
         url,
-        defaultCwd: "C:\\Users\\shota\\code",
+        defaultCwd: "C:\\Users\\user\\code",
         platform: "windows"
       }
     },
@@ -484,7 +484,7 @@ function handleFakeMessage(socket, state, message) {
   if (message.method === "initialize") {
     respond({
       userAgent: "fake-codex",
-      codexHome: "C:\\Users\\shota\\.codex",
+      codexHome: "C:\\Users\\user\\.codex",
       platformFamily: "windows",
       platformOs: "windows"
     });
