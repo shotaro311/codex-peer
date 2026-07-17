@@ -10,10 +10,12 @@ import {
   callPeerRead,
   callPeerWait,
   callPeerWaitUntilComplete,
+  createTurnCollector,
   needsUserCheckForTurns,
   normalizePeerConfig,
   readPeerToken,
   resolvePeer,
+  truncate,
   validatePeerConnectionPolicy
 } from "../scripts/codex-peer-mcp.mjs";
 
@@ -137,6 +139,27 @@ describe("config", () => {
   it("marks the fifth peer turn for user check", () => {
     assert.equal(needsUserCheckForTurns(4, 5), false);
     assert.equal(needsUserCheckForTurns(5, 5), true);
+  });
+});
+
+describe("turn collector", () => {
+  it("caps streamed text accumulation at the response limit", () => {
+    const collector = createTurnCollector("thread-1", 10);
+    collector.handle("turn/started", { threadId: "thread-1", turn: { id: "turn-1" } });
+    for (let i = 0; i < 50; i += 1) {
+      collector.handle("item/agentMessage/delta", { threadId: "thread-1", turnId: "turn-1", delta: "0123456789" });
+    }
+
+    assert.equal(collector.text.length, 11);
+    assert.ok(truncate(collector.text, 10).endsWith("…"));
+  });
+
+  it("keeps short streamed text unchanged", () => {
+    const collector = createTurnCollector("thread-1", 100);
+    collector.handle("turn/started", { threadId: "thread-1", turn: { id: "turn-1" } });
+    collector.handle("item/agentMessage/delta", { threadId: "thread-1", turnId: "turn-1", delta: "Short reply." });
+
+    assert.equal(collector.text, "Short reply.");
   });
 });
 

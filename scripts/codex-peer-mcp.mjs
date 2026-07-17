@@ -468,7 +468,7 @@ export async function callPeerMessage(config, args, options = {}) {
     if (args.threadId && !args.startNewThread) {
       await client.request("thread/resume", { threadId, excludeTurns: false }).catch(() => null);
     }
-    const collector = createTurnCollector(threadId);
+    const collector = createTurnCollector(threadId, maxResponseChars);
     unsubscribe = client.onNotification((method, params) => collector.handle(method, params));
 
     const response = await client.request("turn/start", {
@@ -782,7 +782,9 @@ export async function readTurns(client, threadId, limit = 20) {
   return response.data || [];
 }
 
-export function createTurnCollector(threadId) {
+export function createTurnCollector(threadId, maxBufferChars = DEFAULT_MAX_RESPONSE_CHARS) {
+  // Buffer one char past the response limit so truncate() still marks the cut with an ellipsis.
+  const bufferLimit = (Number.isFinite(maxBufferChars) && maxBufferChars > 0 ? maxBufferChars : DEFAULT_MAX_RESPONSE_CHARS) + 1;
   const collector = {
     threadId,
     turnId: null,
@@ -807,7 +809,7 @@ export function createTurnCollector(threadId) {
           return;
         }
         if (typeof params.delta === "string") {
-          this.text = appendDelta(this.text, params.delta);
+          this.text = appendBounded(this.text, params.delta, bufferLimit);
         }
         return;
       }
@@ -816,7 +818,7 @@ export function createTurnCollector(threadId) {
           return;
         }
         if (typeof params.item.text === "string" && !this.text.includes(params.item.text)) {
-          this.text = appendDelta(this.text, params.item.text);
+          this.text = appendBounded(this.text, params.item.text, bufferLimit);
         }
         return;
       }
@@ -891,6 +893,13 @@ export class TranscriptRecorder {
       this.fd = null;
     }
   }
+}
+
+export function appendBounded(current, delta, maxChars) {
+  if (current.length >= maxChars) {
+    return current;
+  }
+  return appendDelta(current, delta).slice(0, maxChars);
 }
 
 export function appendDelta(current, delta) {
