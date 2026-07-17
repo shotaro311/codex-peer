@@ -6,3 +6,4 @@ coverage/
 .env.*
 *.token
 peers.json
+progress/
