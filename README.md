@@ -22,6 +22,8 @@ Codex Peerは、**Codex同士、またはClaude CodeからCodexへ依頼を送�
 - Claude Codeから、同じパソコンまたは別のパソコンで動くCodexへ依頼する（Claude Code側の導入設定が必要）
 - 相手のパソコンにしかないファイル、アプリ、設定を調べてもらう
 - 相手側で利用可能なComputer UseやBrowser Useなどを確認し、その相手側セッションで使ってもらう
+- Computer Useやブラウザ操作を相手ごとに1件へ直列化し、同時起動による競合を防ぐ
+- Mac・Windows双方で、劣化した専用app-serverをアイドル時だけ自動復旧する
 - プロジェクトフォルダを指定せず、相手側で通常の新しいタスクを始める
 - 時間のかかる作業が終わるまで待ち、結果を受け取る
 - 相手側にあるCodexのタスク一覧や、過去のやり取りを確認する
@@ -65,7 +67,9 @@ Codex Peerは、依頼元のComputer Use、ブラウザ、ログイン状態、C
 
 `peer_health`が成功しても、確認できるのはCodex Peerとapp-serverの接続です。Computer UseやBrowser Useが現在の相手側セッションで実行できることは、各機能の読み取り確認で別途確かめます。
 
-macOSで`Sky Computer Use native pipe startup failed`が出た場合は、すぐにアクセシビリティ権限不足と断定しません。同じMacの別Codexセッションで読み取り確認が成功するかを調べ、GUI操作を行うPeerタスクを1つに絞ります。専用app-serverサービスの長時間稼働やComputer Use helperの滞留が疑われ、ユーザーが復旧を許可している場合は、対話中のCodex/ChatGPTアプリではなく専用サービスだけを再起動します。サービスのPID変更、接続復旧、helper整理を確認してから、読み取り確認を1回だけ再実行します。それでも失敗する場合に、macOSのアクセシビリティと画面収録を確認します。
+画面・ブラウザ作業には`peer_message`ではなく`peer_capability_message`を使います。これにより、同じ相手・同じ機能のタスクはプロセスをまたいで1件に制限され、読み取り専用の事前確認が成功した場合だけ本操作へ進みます。送信などの非冪等操作には「1回だけ実行し、不明時は再試行しない」という制約が自動で追加されます。
+
+macOSまたはWindowsで`Sky Computer Use native pipe startup failed`が出た場合は、すぐに権限不足と断定しません。受信側にwatchdogを設定すると、接続中のタスクがない場合に限り、health、稼働時間、Computer Use helper数と古さを確認して専用app-serverだけを再起動します。macOSでは指定したLaunchAgent、Windowsでは待受PIDとコマンドを照合した専用プロセスだけが対象です。
 
 ### Codex公式機能との使い分け
 
@@ -125,6 +129,7 @@ Codex Peerは、相手側のCodexへ作業を依頼できる強い権限を持�
 
 - `peer_health`: 相手側との接続状態を確認する
 - `peer_message`: 相手側で新しいタスクを始める、または既存タスクを続ける
+- `peer_capability_message`: Computer Useやブラウザ作業を排他制御し、事前確認後に1回だけ実行する
 - `peer_wait`: 実行中の作業を一度確認する
 - `peer_wait_until_complete`: 作業が終わるまで定期的に確認する
 - `peer_threads`: 相手側のタスク一覧を取得する
@@ -188,7 +193,9 @@ Use Codex's native remote features first when they cover the workflow. Codex Pee
 - inspect files, applications, or state that exist only on that computer;
 - exchange natural-language task reports with the calling Codex;
 - work in either direction, such as Mac to Windows and Windows to Mac;
-- ask a Codex running on the same or another computer to perform work from Claude Code.
+- ask a Codex running on the same or another computer to perform work from Claude Code;
+- serialize peer-local GUI and browser work across caller processes;
+- automatically recover an idle degraded receiver on either macOS or Windows.
 
 Codex Peer does not provide remote desktop control. The peer Codex can only do what its own tools, permissions, and local environment allow.
 
@@ -207,7 +214,9 @@ For capability-dependent work:
 
 `peer_health` verifies the peer app-server connection only. It does not prove that Computer Use, Browser Use, or a browser extension is callable in the current peer session.
 
-If a macOS peer reports `Sky Computer Use native pipe startup failed`, do not immediately diagnose a permissions problem. Check whether another local Codex session can complete a harmless Computer Use preflight, keep GUI work on one peer thread, and inspect the dedicated receiver for long uptime or accumulated helper processes. With user authorization, restart only the dedicated receiver service, verify its process and endpoint, and run one new preflight. Check Accessibility and Screen Recording only if the clean single-thread preflight still fails or no local session can use Computer Use.
+Use `peer_capability_message` instead of `peer_message` for desktop and browser work. It serializes each peer and capability across caller processes, requires a harmless preflight, and adds exactly-once handling to non-idempotent actions.
+
+If a macOS or Windows peer reports `Sky Computer Use native pipe startup failed`, do not immediately diagnose a permissions problem. The optional watchdog checks receiver health, uptime, helper count, helper age, and active connections. It restarts only an idle verified dedicated receiver: a configured LaunchAgent on macOS or the exact listener PID with validated command fragments on Windows.
 
 > [!IMPORTANT]
 > This repository is distributed as a Codex plugin. To use it from Claude Code, do not reuse the Codex installation commands unchanged. Package or configure the bundled MCP server according to the current Claude Code plugin or MCP specification. Claude Code plugins use structures such as `.claude-plugin/plugin.json`, while standalone MCP setup uses Claude Code's `claude mcp` commands or `.mcp.json` format. The current release does not include a one-command installer for Claude Code.
@@ -239,6 +248,7 @@ For Claude Code, configure the bundled server according to the [Claude Code plug
 
 - `peer_health`: verifies the connection and app-server initialization.
 - `peer_message`: starts or continues a peer task.
+- `peer_capability_message`: serializes capability-dependent work and requires a harmless preflight before action.
 - `peer_wait`: checks one existing peer turn.
 - `peer_wait_until_complete`: quietly follows a turn until it ends or the local wait window expires.
 - `peer_threads`: lists threads on the peer.
@@ -268,7 +278,7 @@ npm audit --omit=dev
 
 ### Status and scope
 
-The initial release is intentionally small: remote app-server messaging, thread discovery, readback, and long-turn tracking. It does not include scheduled jobs, remote desktop, local LLM summarization, or a relay service.
+The current release covers remote app-server messaging, thread discovery, readback, long-turn tracking, serialized capability tasks, and an optional receiver watchdog. It does not include remote desktop, local LLM summarization, or a hosted relay service.
 
 See [Troubleshooting](docs/troubleshooting.md), [Contributing](CONTRIBUTING.md), the [MIT License](LICENSE), and [third-party notices](THIRD_PARTY_NOTICES.md).
 

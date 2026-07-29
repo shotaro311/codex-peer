@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.0 - 2026-07-29
+
+### Added
+
+- `peer_capability_message` for cross-process serialization of Computer Use, Browser Use, and browser-extension tasks.
+- Mandatory read-only preflight and explicit risk classification for capability-dependent work.
+- Retained capability locks for peer turns that outlive the wait window, released by `peer_wait_until_complete`.
+- A cross-platform receiver watchdog for macOS LaunchAgents and verified Windows app-server processes.
+- Idle-only recovery based on endpoint health, accumulated helpers, stale helpers, and receiver uptime.
+- A cross-platform MCP entrypoint check so the bundled stdio server starts correctly on Windows.
+
+### Safety
+
+- Non-idempotent actions are wrapped with exactly-once instructions and are never automatically retried.
+- Windows recovery validates the listener PID and expected command fragments before terminating a process.
+- Recovery is deferred while a peer connection is active and rate-limited by a cooldown.
+- Watchdog reports omit command lines and token paths.
+
+This release adds symmetric Mac-to-Windows and Windows-to-Mac avoidance and recovery building blocks.
+
 ## 0.1.2 - 2026-07-29
 
 ### Added

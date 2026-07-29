@@ -1,0 +1,15 @@
+{
+  "listenPort": 17845,
+  "healthUrl": "http://127.0.0.1:17845/readyz",
+  "maxUptimeSeconds": 86400,
+  "maxHelperProcesses": 3,
+  "maxHelperAgeSeconds": 3600,
+  "cooldownSeconds": 600,
+  "helperPatterns": [
+    "SkyComputerUseClient"
+  ],
+  "service": {
+    "kind": "launchd",
+    "label": "com.example.codexpeer.appserver"
+  }
+}

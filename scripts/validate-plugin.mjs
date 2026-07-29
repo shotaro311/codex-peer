@@ -12,8 +12,9 @@ const licensePath = path.join(root, "LICENSE");
 const noticesPath = path.join(root, "THIRD_PARTY_NOTICES.md");
 const bundlePath = path.join(root, "dist", "codex-peer-mcp.mjs");
 const bundleNormalizerPath = path.join(root, "scripts", "normalize-bundle.mjs");
+const watchdogPath = path.join(root, "scripts", "codex-peer-watchdog.mjs");
 
-for (const required of [manifestPath, mcpPath, skillPath, marketplacePath, licensePath, noticesPath, bundlePath, bundleNormalizerPath]) {
+for (const required of [manifestPath, mcpPath, skillPath, marketplacePath, licensePath, noticesPath, bundlePath, bundleNormalizerPath, watchdogPath]) {
   if (!fs.existsSync(required)) {
     throw new Error(`Missing required file: ${required}`);
   }

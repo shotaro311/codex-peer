@@ -132,3 +132,48 @@ WSS example:
 Ask Codex to run `peer_health` for the configured peer. Then send a harmless task such as asking for the peer operating system and verify that the returned `turnStatus` is `completed`.
 
 If it fails, use [Troubleshooting](troubleshooting.md).
+
+## 7. Install the optional cross-platform watchdog
+
+The watchdog prevents long-lived Computer Use helpers from accumulating and can restart only an idle dedicated receiver. Install it on every computer that receives GUI work so Mac-to-Windows and Windows-to-Mac recovery are symmetric.
+
+Copy the matching example to a stable path outside the plugin cache:
+
+```text
+~/.codex-peer/watchdog.json
+```
+
+On macOS or Linux, restrict it before the first run:
+
+```bash
+chmod 600 ~/.codex-peer/watchdog.json
+```
+
+Start from:
+
+- `examples/watchdog.macos.json` for macOS;
+- `examples/watchdog.windows.json` for Windows.
+
+Run a non-mutating check first:
+
+```bash
+node scripts/codex-peer-watchdog.mjs --config ~/.codex-peer/watchdog.json --check-only
+```
+
+The result contains only the listener PID, health result, uptime, active-connection count, and helper counts. It does not print process command lines or token paths.
+
+### macOS scheduling
+
+Run the watchdog every five minutes from a separate LaunchAgent. The watchdog config must name the dedicated app-server LaunchAgent label. It invokes `launchctl kickstart -k` only when recovery is needed and no peer connection is active.
+
+### Windows scheduling
+
+Run the watchdog every five minutes from a user Scheduled Task. Configure:
+
+- the dedicated app-server port;
+- at least two `expectedCommandFragments`, including `app-server` and the exact loopback listener;
+- an absolute `startCommand` that starts the existing receiver.
+
+Before stopping anything, the watchdog resolves the PID that owns the configured port and requires its command line to contain every expected fragment. It never terminates processes by executable name.
+
+Keep the watchdog config and copied script in a user-only directory. Do not place tokens or token values in the watchdog config.

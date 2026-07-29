@@ -22,7 +22,7 @@ test("the bundled MCP server imports without node_modules", async () => {
 });
 
 test("the bundled MCP server completes an stdio handshake", async () => {
-  const client = new Client({ name: "codex-peer-smoke", version: "0.1.0" });
+  const client = new Client({ name: "codex-peer-smoke", version: "0.2.0" });
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [path.resolve("dist/codex-peer-mcp.mjs")],
@@ -35,7 +35,15 @@ test("the bundled MCP server completes an stdio handshake", async () => {
     const result = await client.listTools();
     assert.deepEqual(
       result.tools.map(tool => tool.name),
-      ["peer_health", "peer_message", "peer_wait", "peer_wait_until_complete", "peer_threads", "peer_read"]
+      [
+        "peer_health",
+        "peer_message",
+        "peer_capability_message",
+        "peer_wait",
+        "peer_wait_until_complete",
+        "peer_threads",
+        "peer_read"
+      ]
     );
     assert.ok(result.tools.every(tool => tool.annotations?.openWorldHint === true));
   } finally {

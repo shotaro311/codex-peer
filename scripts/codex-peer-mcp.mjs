@@ -3,13 +3,13 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { pathToFileURL } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import WebSocket from "ws";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
 export const DEFAULT_MAX_RESPONSE_CHARS = 8000;
 export const DEFAULT_PROGRESS_CHECK_AFTER_TURNS = 5;
 export const DEFAULT_INITIAL_WAIT_MS = 3000;
@@ -17,6 +17,7 @@ export const DEFAULT_RPC_TIMEOUT_MS = 30000;
 export const DEFAULT_CONNECT_TIMEOUT_MS = 15000;
 export const DEFAULT_WAIT_WINDOW_SECONDS = 7200;
 export const DEFAULT_POLL_INTERVAL_SECONDS = 15;
+export const DEFAULT_CAPABILITY_LOCK_SECONDS = 4 * 60 * 60;
 
 const TOOL_DEFINITIONS = [
   {
@@ -67,6 +68,38 @@ const TOOL_DEFINITIONS = [
     }
   },
   {
+    name: "peer_capability_message",
+    description: "Run one serialized peer-local capability task with a mandatory read-only preflight.",
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      openWorldHint: true
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        peerId: { type: "string" },
+        capability: {
+          type: "string",
+          enum: ["computer-use", "browser-use", "browser-extension"]
+        },
+        risk: {
+          type: "string",
+          enum: ["read-only", "idempotent", "non-idempotent"]
+        },
+        preflight: { type: "string" },
+        message: { type: "string" },
+        threadId: { type: "string" },
+        cwd: { type: "string" },
+        startNewThread: { type: "boolean" },
+        maxResponseChars: { type: "number" },
+        waitWindowSeconds: { type: "number" }
+      },
+      required: ["peerId", "capability", "risk", "preflight", "message"],
+      additionalProperties: false
+    }
+  },
+  {
     name: "peer_wait",
     description: "Check a previously-started peer turn without treating long work as failure.",
     annotations: {
@@ -108,6 +141,11 @@ const TOOL_DEFINITIONS = [
         pollIntervalSeconds: {
           type: "number",
           description: "Seconds between internal app-server reads while waiting."
+        },
+        capability: {
+          type: "string",
+          enum: ["computer-use", "browser-use", "browser-extension"],
+          description: "Release a retained capability lock after this turn reaches a terminal state."
         }
       },
       required: ["peerId", "threadId"],
@@ -526,6 +564,52 @@ export async function callPeerMessage(config, args, options = {}) {
   }
 }
 
+export async function callPeerCapabilityMessage(config, args, options = {}) {
+  const lock = acquireCapabilityLock(args.peerId, args.capability, options);
+  if (!lock) {
+    return {
+      ok: false,
+      peerId: args.peerId,
+      capability: args.capability,
+      busy: true,
+      peerTurnStarted: false,
+      warnings: ["Another task is already using this peer-local capability."]
+    };
+  }
+
+  const message = capabilityTaskPrompt(args);
+  try {
+    const result = await callPeerMessage(config, {
+      peerId: args.peerId,
+      message,
+      threadId: args.threadId,
+      cwd: args.cwd,
+      startNewThread: args.startNewThread,
+      maxResponseChars: args.maxResponseChars,
+      waitForCompletion: true,
+      waitWindowSeconds: args.waitWindowSeconds
+    }, options);
+    lock.update({ threadId: result.threadId, turnId: result.turnId });
+    if (result.turnCompleted) {
+      lock.release();
+    } else {
+      lock.retain();
+    }
+    return {
+      ...result,
+      capability: args.capability,
+      risk: args.risk,
+      busy: false,
+      peerTurnStarted: true,
+      capabilityLockRetained: !result.turnCompleted
+    };
+  } catch (error) {
+    lock.update({ error: "peer-call-failed" });
+    lock.retain();
+    throw error;
+  }
+}
+
 export async function callPeerWait(config, args, options = {}) {
   const peer = resolvePeer(config, args.peerId, options.env);
   const client = new AppServerWsClient(peer, options);
@@ -630,7 +714,7 @@ export async function callPeerWaitUntilComplete(config, args, options = {}) {
       responseChars: finalText.length
     });
 
-    return {
+    const result = {
       ok: succeeded !== false,
       peerId: peer.id,
       threadId: args.threadId,
@@ -646,6 +730,14 @@ export async function callPeerWaitUntilComplete(config, args, options = {}) {
       needsUserCheck: needsUserCheckForTurns(turns.length, config.defaults.progressCheckAfterTurns),
       warnings: turnWarnings(completed, succeeded, turnStatus, "Peer turn is still running after the quiet wait window.")
     };
+    if (completed && args.capability) {
+      result.capabilityLockReleased = releaseCapabilityLock(
+        args.peerId,
+        args.capability,
+        { ...options, turnId }
+      );
+    }
+    return result;
   } finally {
     recorder?.close();
     client.close();
@@ -710,7 +802,7 @@ export function createMcpServer(options = {}) {
         tools: {}
       },
       instructions:
-        "Use Codex Peer for remote Codex collaboration. Do not require peerStatus labels; read peer natural-language reports and decide the next action. Long turns are normal; use peer_message with waitForCompletion or peer_wait_until_complete for quiet monitoring, and avoid repeating unchanged in-progress updates to the user."
+        "Use Codex Peer for remote Codex collaboration. Use peer_capability_message for Computer Use and browser work so one peer-local capability task runs at a time with a read-only preflight. Pass the same capability to peer_wait_until_complete when a capability lock is retained. Never automatically retry non-idempotent actions."
     }
   );
 
@@ -735,11 +827,110 @@ export function createMcpServer(options = {}) {
 export async function callToolByName(config, name, args, options = {}) {
   if (name === "peer_health") return callPeerHealth(config, args, options);
   if (name === "peer_message") return callPeerMessage(config, args, options);
+  if (name === "peer_capability_message") return callPeerCapabilityMessage(config, args, options);
   if (name === "peer_wait") return callPeerWait(config, args, options);
   if (name === "peer_wait_until_complete") return callPeerWaitUntilComplete(config, args, options);
   if (name === "peer_threads") return callPeerThreads(config, args, options);
   if (name === "peer_read") return callPeerRead(config, args, options);
   throw new Error(`Unknown tool: ${name}`);
+}
+
+export function capabilityTaskPrompt(args) {
+  const exactlyOnce = args.risk === "non-idempotent"
+    ? "The requested action is non-idempotent. Execute it at most once. If completion is uncertain, do not retry."
+    : "Do not repeat the requested action after it succeeds.";
+  return [
+    `Use the peer-local ${args.capability} capability and its installed skill.`,
+    "First run only this harmless read-only preflight:",
+    args.preflight,
+    "If the preflight fails, stop without performing the requested action and report the exact capability-specific blocker.",
+    exactlyOnce,
+    "After a successful preflight, perform this request:",
+    args.message,
+    "Finish with readback that distinguishes preflight success from action completion."
+  ].join("\n\n");
+}
+
+export function acquireCapabilityLock(peerId, capability, options = {}) {
+  const lockPath = capabilityLockPath(peerId, capability, options);
+  fs.mkdirSync(path.dirname(lockPath), { recursive: true, mode: 0o700 });
+  const now = Date.now();
+  const existing = readJsonFile(lockPath);
+  if (existing && Date.parse(existing.expiresAt || "") <= now) {
+    fs.rmSync(lockPath, { force: true });
+  }
+  const token = `${process.pid}-${now}-${Math.random().toString(16).slice(2)}`;
+  let fd;
+  try {
+    fd = fs.openSync(lockPath, "wx", 0o600);
+  } catch (error) {
+    if (error.code === "EEXIST") return null;
+    throw error;
+  }
+  const metadata = {
+    peerId,
+    capability,
+    token,
+    pid: process.pid,
+    startedAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + DEFAULT_CAPABILITY_LOCK_SECONDS * 1000).toISOString()
+  };
+  let closed = false;
+  const write = () => {
+    if (closed) throw new Error("Capability lock is already closed.");
+    fs.ftruncateSync(fd, 0);
+    fs.writeSync(fd, JSON.stringify(metadata) + "\n", 0, "utf8");
+    fs.fsyncSync(fd);
+  };
+  write();
+  return {
+    path: lockPath,
+    update(values) {
+      Object.assign(metadata, values);
+      write();
+    },
+    retain() {
+      if (!closed) {
+        fs.closeSync(fd);
+        closed = true;
+      }
+    },
+    release() {
+      try {
+        if (!closed) {
+          fs.closeSync(fd);
+          closed = true;
+        }
+      } finally {
+        const current = readJsonFile(lockPath);
+        if (current?.token === token) fs.rmSync(lockPath, { force: true });
+      }
+    }
+  };
+}
+
+export function releaseCapabilityLock(peerId, capability, options = {}) {
+  const lockPath = capabilityLockPath(peerId, capability, options);
+  const current = readJsonFile(lockPath);
+  if (!current) return false;
+  if (options.turnId && current.turnId && current.turnId !== options.turnId) return false;
+  fs.rmSync(lockPath, { force: true });
+  return true;
+}
+
+function capabilityLockPath(peerId, capability, options = {}) {
+  const root = options.lockDir
+    || process.env.CODEX_PEER_LOCK_DIR
+    || path.join(os.homedir(), ".codex-peer", "locks");
+  return path.join(root, `${safeSegment(peerId)}-${safeSegment(capability)}.lock`);
+}
+
+function readJsonFile(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 export function jsonToolResult(value, isError = false) {
@@ -1084,7 +1275,7 @@ async function main() {
   await server.connect(transport);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   main().catch(error => {
     console.error(safeErrorMessage(error));
     process.exitCode = 1;

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import { WebSocketServer } from "ws";
 import {
   callPeerHealth,
+  callPeerCapabilityMessage,
   callPeerMessage,
   callPeerRead,
   callPeerWait,
@@ -25,6 +26,8 @@ let tempDirs = [];
 beforeEach(() => {
   process.env.CODEX_PEER_RUN_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "codex-peer-runs-"));
   tempDirs.push(process.env.CODEX_PEER_RUN_DIR);
+  process.env.CODEX_PEER_LOCK_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "codex-peer-locks-"));
+  tempDirs.push(process.env.CODEX_PEER_LOCK_DIR);
 });
 
 afterEach(async () => {
@@ -35,6 +38,7 @@ afterEach(async () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
   delete process.env.CODEX_PEER_RUN_DIR;
+  delete process.env.CODEX_PEER_LOCK_DIR;
 });
 
 describe("config", () => {
@@ -432,6 +436,76 @@ describe("peer tools", () => {
     assert.equal(read.turns.length, 1);
     assert.equal(read.finalText, "Readable result.");
   });
+
+  it("serializes capability tasks and releases the lock after completion", async () => {
+    const fake = await startFakeAppServer({ reply: "Preflight and action completed." });
+    const config = configFor(fake.url);
+    const args = {
+      peerId: "windows",
+      capability: "computer-use",
+      risk: "non-idempotent",
+      preflight: "List applications.",
+      message: "Perform one UI action.",
+      waitWindowSeconds: 1
+    };
+
+    const first = await callPeerCapabilityMessage(config, args);
+    const second = await callPeerCapabilityMessage(config, args);
+
+    assert.equal(first.turnCompleted, true);
+    assert.equal(first.capabilityLockRetained, false);
+    assert.equal(second.busy, false);
+    assert.equal(fake.state.inputs[0].includes("Execute it at most once"), true);
+  });
+
+  it("retains a capability lock while the peer turn is still running", async () => {
+    const fake = await startFakeAppServer({ completeDelayMs: null, reply: "Working." });
+    const config = configFor(fake.url);
+    const args = {
+      peerId: "windows",
+      capability: "computer-use",
+      risk: "read-only",
+      preflight: "List applications.",
+      message: "Inspect the UI.",
+      waitWindowSeconds: 0.02
+    };
+
+    const first = await callPeerCapabilityMessage(config, args);
+    const second = await callPeerCapabilityMessage(config, args);
+
+    assert.equal(first.turnCompleted, false);
+    assert.equal(first.capabilityLockRetained, true);
+    assert.equal(second.busy, true);
+    assert.equal(second.peerTurnStarted, false);
+  });
+
+  it("releases a retained capability lock after a terminal wait", async () => {
+    const fake = await startFakeAppServer({ completeDelayMs: 80, reply: "Finished later." });
+    const config = configFor(fake.url);
+    const args = {
+      peerId: "windows",
+      capability: "computer-use",
+      risk: "read-only",
+      preflight: "List applications.",
+      message: "Inspect the UI.",
+      waitWindowSeconds: 0.02
+    };
+
+    const started = await callPeerCapabilityMessage(config, args);
+    const waited = await callPeerWaitUntilComplete(config, {
+      peerId: "windows",
+      threadId: started.threadId,
+      turnId: started.turnId,
+      capability: "computer-use",
+      waitWindowSeconds: 1,
+      pollIntervalSeconds: 0.01
+    });
+    const next = await callPeerCapabilityMessage(config, { ...args, waitWindowSeconds: 1 });
+
+    assert.equal(waited.turnCompleted, true);
+    assert.equal(waited.capabilityLockReleased, true);
+    assert.equal(next.busy, false);
+  });
 });
 
 function configFor(url, defaults = {}) {
@@ -461,7 +535,8 @@ async function startFakeAppServer(options = {}) {
     completeDelayMs: options.completeDelayMs === undefined ? 5 : options.completeDelayMs,
     finalStatus: options.finalStatus || "completed",
     turnError: options.turnError || null,
-    resumeCalls: 0
+    resumeCalls: 0,
+    inputs: []
   };
   const server = new WebSocketServer({ port: 0 });
   servers.push(server);
@@ -508,6 +583,7 @@ function handleFakeMessage(socket, state, message) {
   }
 
   if (message.method === "turn/start") {
+    state.inputs.push(message.params.input?.[0]?.text || "");
     const thread = state.threads.get(message.params.threadId);
     const turn = {
       id: `turn-${state.nextTurn++}`,

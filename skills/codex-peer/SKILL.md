@@ -40,17 +40,30 @@ When a task depends on Computer Use, Browser Use, a browser extension, or anothe
 
 Installed or enabled plugin metadata is supporting evidence only. The capability preflight is the completion gate for deciding that a peer can use that tool in the current session.
 
-### Recovering a macOS Computer Use native-pipe failure
+### Automatic capability serialization
 
-If a macOS peer reports `Sky Computer Use native pipe startup failed`:
+For Computer Use, Browser Use, or browser-extension work, use `peer_capability_message` instead of `peer_message`. Set:
+
+- `capability` to the peer-local capability;
+- `risk` to `read-only`, `idempotent`, or `non-idempotent`;
+- `preflight` to a harmless capability check;
+- `message` to the requested action.
+
+The tool holds a cross-process lock per peer and capability, requires the peer to run the preflight first, and forces a quiet terminal wait. If the wait window expires while the peer turn is still running, the lock remains. Continue with `peer_wait_until_complete` and pass the same `capability`; the lock is released only after the turn becomes terminal.
+
+Never bypass a busy capability lock by falling back to `peer_message`. Never automatically retry a non-idempotent action.
+
+### Recovering a Computer Use native-pipe failure
+
+If a macOS or Windows peer reports `Sky Computer Use native pipe startup failed`:
 
 1. Do not immediately attribute the failure to Accessibility or Screen Recording permissions. Treat the message as a session-local startup failure until isolated.
 2. Stop creating additional GUI-capable peer threads. Keep one receiving thread and run GUI work sequentially so multiple Computer Use helpers do not compete.
-3. Check whether another local Codex session on the same Mac can complete a harmless Computer Use preflight. If it can, the capability and macOS permissions are available; isolate the failure to the receiving app-server or thread.
+3. Check whether another local Codex session on the same host can complete a harmless Computer Use preflight. If it can, the capability and OS permissions are available; isolate the failure to the receiving app-server or thread.
 4. Inspect the dedicated peer app-server process for unusually long uptime or accumulated Computer Use helper processes. Do not expose process arguments that contain credentials.
-5. If the user authorized recovery and the receiver is managed as a dedicated service, restart that service only. Do not quit the interactive Codex or ChatGPT app unless it is actually the receiver.
+5. If the cross-platform watchdog is installed, allow it to restart only an idle, verified dedicated receiver. On macOS it uses the configured LaunchAgent label. On Windows it verifies the listener PID and command before stopping it and runs the configured start command.
 6. Verify the receiver endpoint is healthy, the service process changed, and stale helper processes are gone. Then run exactly one new read-only Computer Use preflight.
-7. Only ask the user to check Accessibility and Screen Recording if the failure persists after a clean receiver restart and a single-thread preflight, or if no local session can use Computer Use.
+7. Only ask the user to check OS permissions if the failure persists after a clean receiver restart and a single-thread preflight, or if no local session can use Computer Use.
 
 After a successful preflight, continue the same healthy peer thread for the consequential action. For message sending or other non-idempotent actions, require exact target and content readback, execute once, and never retry automatically when delivery is uncertain.
 
@@ -58,11 +71,11 @@ After a successful preflight, continue the same healthy peer thread for the cons
 
 1. Select the configured `peerId` that matches the target computer.
 2. Use `peer_health` if the connection has not been verified in the current task.
-3. If the task needs a peer-local capability, include the capability name, relevant skill, target host context, and read-only preflight in the request.
-4. Use `peer_message` with a clear natural-language request.
+3. If the task needs a peer-local capability, use `peer_capability_message` with the capability, risk, and read-only preflight.
+4. Use `peer_message` only for work that does not require a serialized GUI or browser capability.
 5. For a projectless task, start a new thread without `cwd` or `defaultCwd`.
 6. For an existing task, pass its `threadId` and continue the same thread unless a newly installed or updated capability requires a fresh thread.
-7. For user-facing work that may take time, set `waitForCompletion: true` or use `peer_wait_until_complete` with the returned `threadId` and `turnId`.
+7. For user-facing work that may take time, set `waitForCompletion: true` or use `peer_wait_until_complete` with the returned `threadId` and `turnId`. Pass `capability` when releasing a retained capability lock.
 8. Read `ok`, `turnStatus`, `turnSucceeded`, `turnError`, and the peer's natural-language report before deciding the next action.
 9. For capability-dependent work, verify both the preflight and the final peer-local readback.
 10. Summarize the result for the user. Do not repeatedly report unchanged in-progress states.

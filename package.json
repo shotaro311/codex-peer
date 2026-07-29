@@ -1,11 +1,12 @@
 {
   "name": "codex-peer",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Codex peer remote MCP plugin",
   "type": "module",
   "private": true,
   "bin": {
-    "codex-peer-mcp": "./dist/codex-peer-mcp.mjs"
+    "codex-peer-mcp": "./dist/codex-peer-mcp.mjs",
+    "codex-peer-watchdog": "./scripts/codex-peer-watchdog.mjs"
   },
   "scripts": {
     "build": "esbuild scripts/codex-peer-mcp.mjs --bundle --platform=node --format=esm --target=node22 --minify-whitespace --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outfile=dist/codex-peer-mcp.mjs && node scripts/normalize-bundle.mjs",

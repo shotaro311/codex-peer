@@ -1,0 +1,28 @@
+{
+  "listenPort": 17843,
+  "healthUrl": "http://127.0.0.1:17843/healthz",
+  "maxUptimeSeconds": 86400,
+  "maxHelperProcesses": 3,
+  "maxHelperAgeSeconds": 3600,
+  "cooldownSeconds": 600,
+  "helperPatterns": [
+    "SkyComputerUseClient"
+  ],
+  "service": {
+    "kind": "windows-command",
+    "expectedCommandFragments": [
+      "app-server",
+      "127.0.0.1:17843"
+    ],
+    "startCommand": [
+      "powershell.exe",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "C:\\Users\\YOUR_NAME\\code\\shared\\windows-gateway\\scripts\\start-codex-gateway-backends.ps1",
+      "-GatewayRepoRoot",
+      "C:\\Users\\YOUR_NAME\\code\\shared\\windows-gateway"
+    ]
+  }
+}
