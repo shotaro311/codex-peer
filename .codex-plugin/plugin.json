@@ -1,6 +1,6 @@
 {
   "name": "codex-peer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Connect one local Codex session to a peer Codex app-server over remote WebSocket.",
   "author": {
     "name": "Shotaro",
@@ -29,7 +29,7 @@
     ],
     "defaultPrompt": [
       "Ask my Windows Codex to inspect its local environment.",
-      "Start a projectless task on a configured peer Codex.",
+      "Ask a peer Codex to verify and use its local Computer Use capability.",
       "Wait for the peer task and summarize its result."
     ],
     "brandColor": "#2563EB"

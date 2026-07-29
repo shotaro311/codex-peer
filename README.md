@@ -21,6 +21,7 @@ Codex Peerは、**Codex同士、またはClaude CodeからCodexへ依頼を送�
 - WindowsのCodexからMacのCodexへ依頼する
 - Claude Codeから、同じパソコンまたは別のパソコンで動くCodexへ依頼する（Claude Code側の導入設定が必要）
 - 相手のパソコンにしかないファイル、アプリ、設定を調べてもらう
+- 相手側で利用可能なComputer UseやBrowser Useなどを確認し、その相手側セッションで使ってもらう
 - プロジェクトフォルダを指定せず、相手側で通常の新しいタスクを始める
 - 時間のかかる作業が終わるまで待ち、結果を受け取る
 - 相手側にあるCodexのタスク一覧や、過去のやり取りを確認する
@@ -48,6 +49,21 @@ Codex Peerは、**Codex同士、またはClaude CodeからCodexへ依頼を送�
 - ネットワークや認証の初期設定を完全に自動化すること
 
 Codex Peerはリモートデスクトップではありません。相手側のCodexが、そのパソコンで利用できるツールと権限の範囲内で作業します。
+
+### 画面・ブラウザ操作を依頼する場合
+
+Codex Peerは、依頼元のComputer Use、ブラウザ、ログイン状態、Cookie、権限を相手側へ転送しません。画面やブラウザの操作は、対象アプリやログイン済みブラウザが存在するコンピューター側のCodexが、そのコンピューターで利用できる機能を使って実行します。
+
+安全に依頼するため、相手側Codexには次の順序を明示してください。
+
+1. 対象アプリやブラウザが存在するコンピューターを選ぶ
+2. Computer Use、Browser Use、ブラウザ拡張など、使用する機能とSkillを明示する
+3. 本操作前に、アプリ一覧や現在ページなどを読み取るだけの無害な確認を行う
+4. ログイン済みブラウザが必要なら相手側の接続済みブラウザ拡張を優先し、対応ブラウザにはBrowser Use、デスクトップアプリや代替経路にはComputer Useを使う
+5. Skillやプラグインを更新した直後は、新しいPeerタスクで利用可能な機能を読み込み直す
+6. 確認に失敗した場合は、Codex Peer全体の接続障害ではなく、その機能固有の問題として報告する
+
+`peer_health`が成功しても、確認できるのはCodex Peerとapp-serverの接続です。Computer UseやBrowser Useが現在の相手側セッションで実行できることは、各機能の読み取り確認で別途確かめます。
 
 ### Codex公式機能との使い分け
 
@@ -173,6 +189,21 @@ Use Codex's native remote features first when they cover the workflow. Codex Pee
 - ask a Codex running on the same or another computer to perform work from Claude Code.
 
 Codex Peer does not provide remote desktop control. The peer Codex can only do what its own tools, permissions, and local environment allow.
+
+### Delegating desktop and browser work
+
+Codex Peer does not transfer the caller's Computer Use runtime, browser tabs, authenticated session, cookies, tools, or permissions to the peer. Desktop and browser work must run through the Codex instance on the computer that actually owns the target application or signed-in browser profile.
+
+For capability-dependent work:
+
+1. Route the task to the computer that owns the target application, browser profile, files, and authenticated session.
+2. Explicitly tell the peer which local capability and skill to use, such as Computer Use, Browser Use, or an attached browser extension.
+3. Require a harmless read-only preflight before consequential work, such as listing applications, inspecting the target app, or reading the current page.
+4. Prefer an attached browser extension when an existing signed-in browser session is required, Browser Use on its supported browser surface, and Computer Use for desktop applications or fallback.
+5. Start a new peer thread after installing or updating a required plugin, skill, or tool so the receiving Codex can load the current capability set.
+6. If the preflight fails, report the capability-specific blocker instead of describing it as a generic Codex Peer connection failure.
+
+`peer_health` verifies the peer app-server connection only. It does not prove that Computer Use, Browser Use, or a browser extension is callable in the current peer session.
 
 > [!IMPORTANT]
 > This repository is distributed as a Codex plugin. To use it from Claude Code, do not reuse the Codex installation commands unchanged. Package or configure the bundled MCP server according to the current Claude Code plugin or MCP specification. Claude Code plugins use structures such as `.claude-plugin/plugin.json`, while standalone MCP setup uses Claude Code's `claude mcp` commands or `.mcp.json` format. The current release does not include a one-command installer for Claude Code.
