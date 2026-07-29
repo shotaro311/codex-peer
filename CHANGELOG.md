@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2 - 2026-07-29
+
+### Fixed
+
+- Windows watchdog scheduling now uses a hidden `wscript.exe //B //Nologo` launcher instead of running `node.exe` directly in the interactive session.
+- Added an idempotent PowerShell installer that creates or updates `CodexPeerRecoveryWatchdog` with the hidden launcher and a five-minute trigger.
+- Added validation and regression tests that reject a direct Node Scheduled Task action.
+
 ## 0.2.1 - 2026-07-29
 
 ### Clarified

@@ -71,6 +71,8 @@ Codex Peerは、依頼元のComputer Use、ブラウザ、ログイン状態、C
 
 macOSまたはWindowsで`Sky Computer Use native pipe startup failed`が出た場合は、すぐに権限不足と断定しません。受信側にwatchdogを設定すると、接続中のタスクがない場合に限り、health、稼働時間、Computer Use helper数と古さを確認して専用app-serverだけを再起動します。macOSでは指定したLaunchAgent、Windowsでは待受PIDとコマンドを照合した専用プロセスだけが対象です。
 
+Windowsのwatchdogは、同梱の`install-codex-peer-watchdog-task.ps1`で登録してください。`wscript.exe`の非表示ランチャーを使うため、5分ごとの監視でターミナルウィンドウを開きません。`node.exe`をScheduled Taskへ直接登録しないでください。
+
 プラグイン更新後の新規Peerタスクに新しいネイティブツールが表示されない場合、受信app-serverが起動時のツール一覧を保持しています。対話中のCodexアプリではなく専用app-serverだけを1回再起動し、health確認後に新しいPeerタスクを作成してください。
 
 ### Codex公式機能との使い分け
@@ -219,6 +221,8 @@ For capability-dependent work:
 Use `peer_capability_message` instead of `peer_message` for desktop and browser work. It serializes each peer and capability across caller processes, requires a harmless preflight, and adds exactly-once handling to non-idempotent actions.
 
 If a macOS or Windows peer reports `Sky Computer Use native pipe startup failed`, do not immediately diagnose a permissions problem. The optional watchdog checks receiver health, uptime, helper count, helper age, and active connections. It restarts only an idle verified dedicated receiver: a configured LaunchAgent on macOS or the exact listener PID with validated command fragments on Windows.
+
+On Windows, register the watchdog with the included `install-codex-peer-watchdog-task.ps1`. It uses a hidden `wscript.exe` launcher so the five-minute check does not open a terminal window. Do not register `node.exe` directly as the Scheduled Task action.
 
 If a newly installed native tool is still absent from a new peer thread, the long-running receiving app-server retained its startup-time tool inventory. Restart only that dedicated receiver once, verify health, and then create another new peer thread.
 

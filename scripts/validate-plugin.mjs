@@ -13,8 +13,22 @@ const noticesPath = path.join(root, "THIRD_PARTY_NOTICES.md");
 const bundlePath = path.join(root, "dist", "codex-peer-mcp.mjs");
 const bundleNormalizerPath = path.join(root, "scripts", "normalize-bundle.mjs");
 const watchdogPath = path.join(root, "scripts", "codex-peer-watchdog.mjs");
+const windowsWatchdogLauncherPath = path.join(root, "scripts", "windows", "codex-peer-watchdog-hidden.vbs");
+const windowsWatchdogInstallerPath = path.join(root, "scripts", "windows", "install-codex-peer-watchdog-task.ps1");
 
-for (const required of [manifestPath, mcpPath, skillPath, marketplacePath, licensePath, noticesPath, bundlePath, bundleNormalizerPath, watchdogPath]) {
+for (const required of [
+  manifestPath,
+  mcpPath,
+  skillPath,
+  marketplacePath,
+  licensePath,
+  noticesPath,
+  bundlePath,
+  bundleNormalizerPath,
+  watchdogPath,
+  windowsWatchdogLauncherPath,
+  windowsWatchdogInstallerPath
+]) {
   if (!fs.existsSync(required)) {
     throw new Error(`Missing required file: ${required}`);
   }

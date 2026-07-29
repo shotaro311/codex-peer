@@ -170,7 +170,16 @@ Run the watchdog every five minutes from a separate LaunchAgent. The watchdog co
 
 ### Windows scheduling
 
-Run the watchdog every five minutes from a user Scheduled Task. Configure:
+Register or update the user Scheduled Task with the included installer:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\install-codex-peer-watchdog-task.ps1 `
+  -ConfigPath "$env:USERPROFILE\.codex-peer\watchdog.json"
+```
+
+The installer runs every five minutes by default. It registers `wscript.exe //B //Nologo` as the task action, and the included VBS launcher starts the Node watchdog with window style `0`. Do not register `node.exe` directly: `Settings.Hidden` hides a task from the Task Scheduler UI but does not hide a console window.
+
+Configure:
 
 - the dedicated app-server port;
 - at least two `expectedCommandFragments`, including `app-server` and the exact loopback listener;
