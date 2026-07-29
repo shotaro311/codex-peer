@@ -35,7 +35,7 @@ When a task depends on Computer Use, Browser Use, a browser extension, or anothe
    - Browser Use: inspect the current page or open a harmless page.
    - Browser extension: confirm the required browser/profile connection and current URL without changing state.
 4. Choose the browser path based on the peer's local environment. Prefer an attached browser extension for an existing signed-in browser session, Browser Use for its supported browser surface, and Computer Use for desktop applications or as a fallback.
-5. If a plugin, skill, or tool was just installed or updated, prefer a new peer thread so the receiving Codex can load the current capability set.
+5. If a plugin, skill, or tool was just installed or updated, prefer a new peer thread so the receiving Codex can load the current capability set. If the new native tool is still absent, the long-running receiving app-server retained its startup-time tool inventory; restart only that dedicated receiver once, verify health, and create one more new peer thread.
 6. If the preflight fails or the capability is not exposed, stop that path and report the capability-specific blocker. Do not report it as a generic Codex Peer connection failure.
 
 Installed or enabled plugin metadata is supporting evidence only. The capability preflight is the completion gate for deciding that a peer can use that tool in the current session.

@@ -9,7 +9,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import WebSocket from "ws";
 
-export const VERSION = "0.2.0";
+export const VERSION = "0.2.1";
 export const DEFAULT_MAX_RESPONSE_CHARS = 8000;
 export const DEFAULT_PROGRESS_CHECK_AFTER_TURNS = 5;
 export const DEFAULT_INITIAL_WAIT_MS = 3000;

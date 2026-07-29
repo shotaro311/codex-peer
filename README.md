@@ -71,6 +71,8 @@ Codex Peerは、依頼元のComputer Use、ブラウザ、ログイン状態、C
 
 macOSまたはWindowsで`Sky Computer Use native pipe startup failed`が出た場合は、すぐに権限不足と断定しません。受信側にwatchdogを設定すると、接続中のタスクがない場合に限り、health、稼働時間、Computer Use helper数と古さを確認して専用app-serverだけを再起動します。macOSでは指定したLaunchAgent、Windowsでは待受PIDとコマンドを照合した専用プロセスだけが対象です。
 
+プラグイン更新後の新規Peerタスクに新しいネイティブツールが表示されない場合、受信app-serverが起動時のツール一覧を保持しています。対話中のCodexアプリではなく専用app-serverだけを1回再起動し、health確認後に新しいPeerタスクを作成してください。
+
 ### Codex公式機能との使い分け
 
 Codexの標準リモート機能だけで目的を達成できる場合は、標準機能を優先してください。
@@ -217,6 +219,8 @@ For capability-dependent work:
 Use `peer_capability_message` instead of `peer_message` for desktop and browser work. It serializes each peer and capability across caller processes, requires a harmless preflight, and adds exactly-once handling to non-idempotent actions.
 
 If a macOS or Windows peer reports `Sky Computer Use native pipe startup failed`, do not immediately diagnose a permissions problem. The optional watchdog checks receiver health, uptime, helper count, helper age, and active connections. It restarts only an idle verified dedicated receiver: a configured LaunchAgent on macOS or the exact listener PID with validated command fragments on Windows.
+
+If a newly installed native tool is still absent from a new peer thread, the long-running receiving app-server retained its startup-time tool inventory. Restart only that dedicated receiver once, verify health, and then create another new peer thread.
 
 > [!IMPORTANT]
 > This repository is distributed as a Codex plugin. To use it from Claude Code, do not reuse the Codex installation commands unchanged. Package or configure the bundled MCP server according to the current Claude Code plugin or MCP specification. Claude Code plugins use structures such as `.claude-plugin/plugin.json`, while standalone MCP setup uses Claude Code's `claude mcp` commands or `.mcp.json` format. The current release does not include a one-command installer for Claude Code.

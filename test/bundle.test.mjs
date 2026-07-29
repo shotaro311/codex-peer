@@ -22,7 +22,7 @@ test("the bundled MCP server imports without node_modules", async () => {
 });
 
 test("the bundled MCP server completes an stdio handshake", async () => {
-  const client = new Client({ name: "codex-peer-smoke", version: "0.2.0" });
+  const client = new Client({ name: "codex-peer-smoke", version: "0.2.1" });
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [path.resolve("dist/codex-peer-mcp.mjs")],

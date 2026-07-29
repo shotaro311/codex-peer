@@ -16,6 +16,8 @@ codex plugin add codex-peer@codex-peer
 
 Restart Codex after installation if the plugin is not visible immediately.
 
+If a new peer thread still lacks a newly installed native plugin tool, restart only the dedicated receiving app-server and verify its health before creating another peer thread. Restarting the interactive Codex or ChatGPT app is not required when it is not the receiver.
+
 ## 2. Create a host token
 
 Store tokens outside the repository. Do not paste them into prompts, issues, screenshots, or configuration JSON.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 - 2026-07-29
+
+### Clarified
+
+- A long-running receiving app-server can retain its startup-time native tool inventory after a plugin update.
+- If a new peer thread still lacks a newly installed tool, restart only the dedicated receiver once, verify health, and create another new thread.
+
 ## 0.2.0 - 2026-07-29
 
 ### Added

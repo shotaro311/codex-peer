@@ -11,6 +11,8 @@ codex plugin list
 
 Confirm that marketplace `codex-peer` and plugin `codex-peer` are present, then restart Codex.
 
+If the plugin is installed but a new peer thread still lacks a newly added native tool, restart only the dedicated receiving app-server. A long-running receiver may retain the tool inventory that existed when it started. Verify health and create another new peer thread after the restart.
+
 ## Config not found
 
 Create `~/.codex-peer/peers.json` or set `CODEX_PEER_CONFIG` to an absolute path.
