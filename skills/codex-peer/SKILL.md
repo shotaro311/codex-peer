@@ -40,6 +40,20 @@ When a task depends on Computer Use, Browser Use, a browser extension, or anothe
 
 Installed or enabled plugin metadata is supporting evidence only. The capability preflight is the completion gate for deciding that a peer can use that tool in the current session.
 
+### Recovering a macOS Computer Use native-pipe failure
+
+If a macOS peer reports `Sky Computer Use native pipe startup failed`:
+
+1. Do not immediately attribute the failure to Accessibility or Screen Recording permissions. Treat the message as a session-local startup failure until isolated.
+2. Stop creating additional GUI-capable peer threads. Keep one receiving thread and run GUI work sequentially so multiple Computer Use helpers do not compete.
+3. Check whether another local Codex session on the same Mac can complete a harmless Computer Use preflight. If it can, the capability and macOS permissions are available; isolate the failure to the receiving app-server or thread.
+4. Inspect the dedicated peer app-server process for unusually long uptime or accumulated Computer Use helper processes. Do not expose process arguments that contain credentials.
+5. If the user authorized recovery and the receiver is managed as a dedicated service, restart that service only. Do not quit the interactive Codex or ChatGPT app unless it is actually the receiver.
+6. Verify the receiver endpoint is healthy, the service process changed, and stale helper processes are gone. Then run exactly one new read-only Computer Use preflight.
+7. Only ask the user to check Accessibility and Screen Recording if the failure persists after a clean receiver restart and a single-thread preflight, or if no local session can use Computer Use.
+
+After a successful preflight, continue the same healthy peer thread for the consequential action. For message sending or other non-idempotent actions, require exact target and content readback, execute once, and never retry automatically when delivery is uncertain.
+
 ## Workflow
 
 1. Select the configured `peerId` that matches the target computer.

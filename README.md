@@ -65,6 +65,8 @@ Codex Peerは、依頼元のComputer Use、ブラウザ、ログイン状態、C
 
 `peer_health`が成功しても、確認できるのはCodex Peerとapp-serverの接続です。Computer UseやBrowser Useが現在の相手側セッションで実行できることは、各機能の読み取り確認で別途確かめます。
 
+macOSで`Sky Computer Use native pipe startup failed`が出た場合は、すぐにアクセシビリティ権限不足と断定しません。同じMacの別Codexセッションで読み取り確認が成功するかを調べ、GUI操作を行うPeerタスクを1つに絞ります。専用app-serverサービスの長時間稼働やComputer Use helperの滞留が疑われ、ユーザーが復旧を許可している場合は、対話中のCodex/ChatGPTアプリではなく専用サービスだけを再起動します。サービスのPID変更、接続復旧、helper整理を確認してから、読み取り確認を1回だけ再実行します。それでも失敗する場合に、macOSのアクセシビリティと画面収録を確認します。
+
 ### Codex公式機能との使い分け
 
 Codexの標準リモート機能だけで目的を達成できる場合は、標準機能を優先してください。
@@ -204,6 +206,8 @@ For capability-dependent work:
 6. If the preflight fails, report the capability-specific blocker instead of describing it as a generic Codex Peer connection failure.
 
 `peer_health` verifies the peer app-server connection only. It does not prove that Computer Use, Browser Use, or a browser extension is callable in the current peer session.
+
+If a macOS peer reports `Sky Computer Use native pipe startup failed`, do not immediately diagnose a permissions problem. Check whether another local Codex session can complete a harmless Computer Use preflight, keep GUI work on one peer thread, and inspect the dedicated receiver for long uptime or accumulated helper processes. With user authorization, restart only the dedicated receiver service, verify its process and endpoint, and run one new preflight. Check Accessibility and Screen Recording only if the clean single-thread preflight still fails or no local session can use Computer Use.
 
 > [!IMPORTANT]
 > This repository is distributed as a Codex plugin. To use it from Claude Code, do not reuse the Codex installation commands unchanged. Package or configure the bundled MCP server according to the current Claude Code plugin or MCP specification. Claude Code plugins use structures such as `.claude-plugin/plugin.json`, while standalone MCP setup uses Claude Code's `claude mcp` commands or `.mcp.json` format. The current release does not include a one-command installer for Claude Code.

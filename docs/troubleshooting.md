@@ -49,3 +49,18 @@ Read `turnStatus`, `turnSucceeded`, and `turnError`. Empty `finalText` is not su
 ## Turn is still running
 
 Keep `threadId` and `turnId`, then use `peer_wait_until_complete`. The wait window does not cancel the peer task.
+
+## macOS Computer Use native pipe fails
+
+If the peer reports `Sky Computer Use native pipe startup failed`, first isolate whether the failure belongs to the Mac, the dedicated receiving app-server, or one peer thread.
+
+1. Stop creating more GUI-capable peer threads and keep one receiving thread for sequential work.
+2. Run a harmless Computer Use preflight from another local Codex session on the same Mac when available.
+3. If the local preflight succeeds, do not change Accessibility or Screen Recording permissions yet. The capability is available and the failure is isolated to the receiver.
+4. Inspect the dedicated receiver's uptime and helper-process count without printing credentials or sensitive process arguments.
+5. With user authorization, restart only the dedicated receiving service. Do not quit an unrelated interactive Codex or ChatGPT app.
+6. Confirm the receiver endpoint is healthy, its process changed, and stale helper processes are gone.
+7. Run exactly one new read-only preflight. Continue the same healthy thread if it succeeds.
+8. Check Accessibility and Screen Recording only when the clean preflight still fails or no local Codex session can use Computer Use.
+
+Do not automatically retry non-idempotent actions such as sending a message. Require exact target and content readback, execute once, and stop if delivery is uncertain.

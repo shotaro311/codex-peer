@@ -1,6 +1,6 @@
 {
   "name": "codex-peer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Connect one local Codex session to a peer Codex app-server over remote WebSocket.",
   "author": {
     "name": "Shotaro",
