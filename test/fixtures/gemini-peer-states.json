@@ -1,0 +1,88 @@
+[
+  {
+    "version": 1,
+    "id": "11111111-1111-4111-8111-111111111111",
+    "cwd": "/workspace/peer-task",
+    "conversationId": null,
+    "createdAt": "2026-09-11T04:00:00.000Z",
+    "updatedAt": "2026-09-11T04:00:00.000Z",
+    "preview": "",
+    "status": "idle"
+  },
+  {
+    "version": 1,
+    "id": "11111111-1111-4111-8111-111111111111",
+    "cwd": "C:\\workspace\\peer-task",
+    "conversationId": "22222222-2222-4222-8222-222222222222",
+    "createdAt": "2026-09-11T04:00:00.000Z",
+    "updatedAt": "2026-09-11T04:01:00.000Z",
+    "preview": "Review the isolated workspace",
+    "status": "idle"
+  },
+  {
+    "version": 1,
+    "id": "33333333-3333-4333-8333-333333333333",
+    "threadId": "11111111-1111-4111-8111-111111111111",
+    "model": "gemini-3.8-flash-medium",
+    "executionMode": "read-only",
+    "status": "inProgress",
+    "startedAt": "2026-09-11T04:00:30.000Z",
+    "text": "",
+    "error": null
+  },
+  {
+    "version": 1,
+    "id": "33333333-3333-4333-8333-333333333333",
+    "threadId": "11111111-1111-4111-8111-111111111111",
+    "model": "gemini-3.8-flash-medium",
+    "executionMode": "read-only",
+    "status": "completed",
+    "startedAt": "2026-09-11T04:00:30.000Z",
+    "completedAt": "2026-09-11T04:01:00.000Z",
+    "cliStatus": "SUCCESS",
+    "text": "Review finished. Verify the reported findings against the files.",
+    "error": null
+  },
+  {
+    "version": 1,
+    "id": "44444444-4444-4444-8444-444444444444",
+    "threadId": "11111111-1111-4111-8111-111111111111",
+    "model": "gemini-3.8-flash-high",
+    "executionMode": "workspace-write",
+    "status": "failed",
+    "startedAt": "2026-09-11T04:02:00.000Z",
+    "completedAt": "2026-09-11T04:02:10.000Z",
+    "cliStatus": "SUCCESS",
+    "text": "",
+    "error": { "message": "Antigravity reported denied permissions or a tool failure: list_dir (requires read_file). The delegated work needs parent review." },
+    "permissionDenied": true,
+    "toolError": true,
+    "toolFailures": [{ "name": "list_dir", "requiredPermission": "read_file" }]
+  },
+  {
+    "version": 1,
+    "id": "55555555-5555-4555-8555-555555555555",
+    "threadId": "11111111-1111-4111-8111-111111111111",
+    "model": "gemini-3.8-flash-high",
+    "executionMode": "workspace-write",
+    "status": "interrupted",
+    "startedAt": "2026-09-11T04:03:00.000Z",
+    "completedAt": "2026-09-11T04:04:00.000Z",
+    "text": "",
+    "error": { "message": "Receiver restarted during this turn. Inspect the work before another task." }
+  },
+  {
+    "version": 1,
+    "id": "66666666-6666-4666-8666-666666666666",
+    "threadId": "11111111-1111-4111-8111-111111111111",
+    "model": "gemini-3.8-flash-medium",
+    "executionMode": "read-only",
+    "status": "completed",
+    "startedAt": "2026-09-11T04:05:00.000Z",
+    "completedAt": "2026-09-11T04:06:00.000Z",
+    "cliStatus": "SUCCESS",
+    "inputText": "Review the saved workspace.\nKeep the findings tied to the requested files.",
+    "text": "The requested files were reviewed. Verify the findings against the saved changes.",
+    "error": null
+  }
+]

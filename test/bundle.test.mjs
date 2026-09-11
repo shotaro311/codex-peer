@@ -39,13 +39,15 @@ test("the bundled MCP server completes an stdio handshake", async () => {
         "peer_health",
         "peer_message",
         "peer_capability_message",
+        "peer_job",
         "peer_wait",
         "peer_wait_until_complete",
         "peer_threads",
         "peer_read"
       ]
     );
-    assert.ok(result.tools.every(tool => tool.annotations?.openWorldHint === true));
+    assert.ok(result.tools.filter(tool => tool.name !== "peer_job").every(tool => tool.annotations?.openWorldHint === true));
+    assert.equal(result.tools.find(tool => tool.name === "peer_job").annotations.openWorldHint, false);
   } finally {
     await client.close();
   }

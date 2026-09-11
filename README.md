@@ -17,6 +17,9 @@ Codex Peerは、**Codex同士、またはClaude CodeからCodexへ依頼を送�
 
 ### できること
 
+- Geminiの依頼・返答をローカルの閲覧専用画面で確認する（`http://127.0.0.1:17848/history`）
+- Gemini 3.8 Flashへ公式Antigravity CLIのサブスク認証で依頼する（[Mac / Windowsの導入](docs/setup-gemini-peer.md)）
+- 子の終了時に親のCodexへ1回通知し、親AIの定期監視を使わず結果を回収する（[完了通知](docs/completion-notifications.md)）
 - MacのCodexからWindowsのCodexへ依頼する
 - WindowsのCodexからMacのCodexへ依頼する
 - Claude Codeから、同じパソコンまたは別のパソコンで動くCodexへ依頼する（Claude Code側の導入設定が必要）
@@ -134,6 +137,7 @@ Codex Peerは、相手側のCodexへ作業を依頼できる強い権限を持�
 - `peer_health`: 相手側との接続状態を確認する
 - `peer_message`: 相手側で新しいタスクを始める、または既存タスクを続ける
 - `peer_capability_message`: Computer Useやブラウザ作業を排他制御し、事前確認後に1回だけ実行する
+- `peer_job`: 完了通知の実行IDから保存結果と配送状態を読み取る
 - `peer_wait`: 実行中の作業を一度確認する
 - `peer_wait_until_complete`: 作業が終わるまで定期的に確認する
 - `peer_threads`: 相手側のタスク一覧を取得する
@@ -143,7 +147,7 @@ Codex Peerは、相手側のCodexへ作業を依頼できる強い権限を持�
 
 ### 現在の範囲
 
-初回リリースは、Codex同士のメッセージ送信、タスク一覧の取得、結果の読み戻し、長時間タスクの追跡に範囲を絞っています。
+0.3.0では、既存のCodex連携にGemini Peerと完了通知を追加します。Geminiへのファイル編集・テスト実行は作業モードとCLIの許可範囲で行います。通知は結果保存後に送信し、不確実な配送を自動再送しません。MacとWindowsの共通実装を含み、各OSで[受入検証](docs/setup-gemini-peer.md#verification-gates)を行ってください。
 
 次の機能は含まれていません。
 
@@ -254,9 +258,12 @@ For Claude Code, configure the bundled server according to the [Claude Code plug
 
 ### Tools
 
+- Gemini 3.8 Flash is available through the official subscription-authenticated Antigravity CLI adapter; see [Gemini setup](docs/setup-gemini-peer.md).
+- Use `notifyParent: true` to save a result and queue one notice to the parent Codex without periodic parent-model monitoring; see [Completion notifications](docs/completion-notifications.md).
 - `peer_health`: verifies the connection and app-server initialization.
 - `peer_message`: starts or continues a peer task.
 - `peer_capability_message`: serializes capability-dependent work and requires a harmless preflight before action.
+- `peer_job`: reads the persisted result and delivery state for a notification job.
 - `peer_wait`: checks one existing peer turn.
 - `peer_wait_until_complete`: quietly follows a turn until it ends or the local wait window expires.
 - `peer_threads`: lists threads on the peer.

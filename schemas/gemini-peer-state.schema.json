@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Gemini Peer thread or turn state v1",
+  "description": "Private receiver state. UUIDs identify local threads/turns; conversationId identifies the exact official CLI conversation. Timestamps are UTC ISO 8601. Optional fields are omitted until observed. Submitted inputText is preserved for local history; configured credentials and raw tool diagnostics are not added.",
+  "oneOf": [
+    { "$ref": "#/definitions/thread" },
+    { "$ref": "#/definitions/turn" }
+  ],
+  "definitions": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "timestamp": { "type": "string", "format": "date-time", "pattern": "Z$" },
+    "thread": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "id", "cwd", "conversationId", "createdAt", "updatedAt", "preview", "status"],
+      "properties": {
+        "version": { "const": 1 },
+        "id": { "$ref": "#/definitions/uuid" },
+        "cwd": { "type": "string", "minLength": 1 },
+        "conversationId": { "anyOf": [{ "$ref": "#/definitions/uuid" }, { "type": "null" }] },
+        "createdAt": { "$ref": "#/definitions/timestamp" },
+        "updatedAt": { "$ref": "#/definitions/timestamp" },
+        "preview": { "type": "string", "maxLength": 160 },
+        "status": { "enum": ["idle", "inProgress"] }
+      }
+    },
+    "turn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "id", "threadId", "model", "executionMode", "status", "startedAt", "text", "error"],
+      "properties": {
+        "version": { "const": 1 },
+        "id": { "$ref": "#/definitions/uuid" },
+        "threadId": { "$ref": "#/definitions/uuid" },
+        "model": { "enum": ["gemini-3.8-flash-medium", "gemini-3.8-flash-high"] },
+        "executionMode": { "enum": ["read-only", "workspace-write"] },
+        "status": { "enum": ["inProgress", "completed", "failed", "interrupted"] },
+        "startedAt": { "$ref": "#/definitions/timestamp" },
+        "completedAt": { "$ref": "#/definitions/timestamp" },
+        "inputText": { "type": "string", "description": "Exact submitted text inputs joined with a newline, before receiver instructions are added. New submissions are limited to 512 KiB of UTF-8 by the receiver. Omitted in legacy v1 turns whose input was not saved." },
+        "text": { "type": "string" },
+        "error": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "object", "additionalProperties": false, "required": ["message"], "properties": { "message": { "type": "string", "minLength": 1 } } }
+          ]
+        },
+        "runnerPid": { "type": "integer", "minimum": 1 },
+        "cliStatus": { "enum": ["SUCCESS", "ERROR", "CANCELED", "INTERRUPTED", "INVALID", "WAITING", "RUNNING"] },
+        "permissionDenied": { "type": "boolean" },
+        "toolError": { "type": "boolean" },
+        "toolFailures": {
+          "type": "array", "maxItems": 32,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["name", "requiredPermission"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[a-zA-Z_][a-zA-Z0-9_.-]{0,63}$" },
+              "requiredPermission": { "anyOf": [{ "type": "string", "pattern": "^[a-z_]+$" }, { "type": "null" }] }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "enum": ["completed", "failed", "interrupted"] } } },
+          "then": { "required": ["completedAt"] }
+        },
+        {
+          "if": { "properties": { "status": { "const": "completed" } } },
+          "then": {
+            "required": ["cliStatus"],
+            "properties": {
+              "cliStatus": { "const": "SUCCESS" }, "error": { "type": "null" }, "text": { "pattern": "\\S" },
+              "permissionDenied": { "const": false }, "toolError": { "const": false }, "toolFailures": { "maxItems": 0 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "enum": ["failed", "interrupted"] } } },
+          "then": { "properties": { "error": { "type": "object" } } }
+        }
+      ]
+    }
+  }
+}

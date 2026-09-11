@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 - Unreleased
+
+- Added a local read-only Gemini conversation history screen, exact input persistence and safe recovery of older CLI transcripts.
+
+- Added the Gemini 3.8 Flash receiver using official Antigravity CLI account authentication, exact conversation continuation, explicit edit mode, and saved terminal results.
+- Added Mac LaunchAgent and Windows hidden Task Scheduler installation with private peer credentials and preserved existing peer configuration.
+- Added detached completion event handling and `peer_job` readback. A saved result triggers one native `codex queue` attempt, with no periodic parent-model monitoring or automatic resend.
+- Surface pending peer approvals as attention, and preserve child IDs after uncertain execution.
+- Reject API-provider settings and additional-credit fallback for Gemini. Failed tools, denied permissions, mismatched models and invalid CLI results cannot report success.
+- Updated locked dependencies; local audit reports no known vulnerabilities.
+
 ## 0.2.2 - 2026-07-29
 
 ### Fixed
