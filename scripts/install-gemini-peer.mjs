@@ -162,7 +162,9 @@ export function planInstall(options, context = {}) {
 }
 
 function command(bin, args, runner = spawnSync) {
-  const result = runner(bin, args, { shell: false, windowsHide: true, encoding: "utf8", timeout: 30000 });
+  // PowerShell 7 module paths are not compatible with the Windows PowerShell child.
+  const env = bin === "powershell.exe" ? { ...process.env, PSModulePath: path.win32.join(process.env.WINDIR || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "Modules") } : process.env;
+  const result = runner(bin, args, { shell: false, windowsHide: true, encoding: "utf8", timeout: 30000, env });
   if (result.error || result.status !== 0) throw new Error("Gemini installation system command failed; inspect the local service or ACL configuration. No existing service was replaced.");
   return result;
 }
@@ -177,7 +179,7 @@ export function applyInstall(plan, options = {}) {
   if (plan.platform === "darwin") {
     if ((fs.statSync(plan.stateDir).mode & 0o077) !== 0) throw new Error("Existing state directory is not private; inspect its permissions before installation.");
   } else {
-    const script = `$ErrorActionPreference='Stop'; $p=${ps(plan.stateDir)}; $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=New-Object System.Security.AccessControl.DirectorySecurity; $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); $rule=New-Object System.Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow'); $acl.AddAccessRule($rule); Set-Acl -LiteralPath $p -AclObject $acl; foreach($f in @(${ps(plan.tokenPath)},${ps(plan.configPath)})){ if(Test-Path -LiteralPath $f){ foreach($a in (Get-Acl -LiteralPath $f).Access){ $id=$a.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value; if($a.AccessControlType -eq 'Allow' -and $id -notin @($sid.Value,'S-1-5-18','S-1-5-32-544')){ throw 'Existing private file grants access to another account; inspect its ACL.' } } } }`;
+    const script = `$ErrorActionPreference='Stop'; $p=${ps(plan.stateDir)}; $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; $acl=New-Object System.Security.AccessControl.DirectorySecurity; $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false); $rule=New-Object System.Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow'); $acl.AddAccessRule($rule); [System.IO.Directory]::SetAccessControl($p,$acl); foreach($f in @(${ps(plan.tokenPath)},${ps(plan.configPath)})){ if(Test-Path -LiteralPath $f){ foreach($a in (Get-Acl -LiteralPath $f).Access){ $id=$a.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value; if($a.AccessControlType -eq 'Allow' -and $id -notin @($sid.Value,'S-1-5-18','S-1-5-32-544')){ throw 'Existing private file grants access to another account; inspect its ACL.' } } } }`;
     command("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], runner);
   }
   const lock = path.join(plan.stateDir, "install.lock");
@@ -219,7 +221,7 @@ export function applyInstall(plan, options = {}) {
         if (existing.status === 0) activation = "already-registered-no-restart";
         else { command("/bin/launchctl", ["bootstrap", `gui/${uid}`, plan.services[0].filename], runner); activation = "registered-and-started"; }
       } else {
-        command("powershell.exe", ["-NoProfile", "-NonInteractive", "-File", plan.services.find(service => service.filename.endsWith(".ps1")).filename], runner);
+        command("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", plan.services.find(service => service.filename.endsWith(".ps1")).filename], runner);
         activation = "registration-command-completed-check-peer-health";
       }
     }
