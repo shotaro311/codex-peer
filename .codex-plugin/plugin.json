@@ -1,7 +1,7 @@
 {
   "name": "codex-peer",
-  "version": "0.2.2",
-  "description": "Connect one local Codex session to a peer Codex app-server over remote WebSocket.",
+  "version": "0.3.0",
+  "description": "Delegate to Codex or subscription-authenticated Gemini and receive a saved completion notification.",
   "author": {
     "name": "Shotaro",
     "url": "https://github.com/shotaro311"
@@ -13,13 +13,15 @@
     "peer",
     "remote",
     "app-server",
-    "mcp"
+    "mcp",
+    "gemini",
+    "completion"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex Peer",
-    "shortDescription": "Codex同士をremoteで自然会話接続する",
-    "longDescription": "Mac Codex と Windows Codex など、別ホストの Codex app-server へ remote WebSocket 経由で自然文の依頼を送り、長時間turnも正常系として追跡するためのローカルCodexプラグインです。v1はremote専用で、execやローカルLLM要約は含みません。",
+    "shortDescription": "CodexとGeminiへの依頼と完了通知",
+    "longDescription": "MacとWindowsのCodex、公式Antigravity CLIのGemini 3.8 Flashへ依頼し、結果保存後の通知で回収します。親AIによる定期監視は不要です。",
     "developerName": "Shotaro",
     "category": "Productivity",
     "capabilities": [
@@ -28,9 +30,9 @@
       "Write"
     ],
     "defaultPrompt": [
-      "Ask my Windows Codex to inspect its local environment.",
-      "Ask a peer Codex to safely serialize and use its local Computer Use capability.",
-      "Wait for the peer task and summarize its result."
+      "Ask a peer Codex to inspect its local environment and notify me when it finishes.",
+      "Ask Gemini 3.8 Flash to work in an isolated workspace.",
+      "Read the saved result from a peer completion notification."
     ],
     "brandColor": "#2563EB"
   },

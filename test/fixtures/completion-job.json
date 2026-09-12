@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "runId": "11111111-1111-4111-8111-111111111111",
+  "parentThreadId": "22222222-2222-4222-8222-222222222222",
+  "peerId": "gemini",
+  "configPath": "/home/user/.codex-peer/peers.json",
+  "codexBin": "/usr/local/bin/codex",
+  "toolName": "peer_message",
+  "request": null,
+  "status": "completed",
+  "createdAt": "2026-09-11T00:00:00.000Z",
+  "updatedAt": "2026-09-11T00:01:00.000Z",
+  "result": {
+    "ok": true,
+    "turnCompleted": true,
+    "turnSucceeded": true,
+    "finalText": "fixture only"
+  },
+  "delivery": {
+    "status": "queued",
+    "attempts": 1,
+    "queuedSubmissionId": "33333333-3333-4333-8333-333333333333"
+  }
+}

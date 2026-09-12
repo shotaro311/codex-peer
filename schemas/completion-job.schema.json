@@ -1,0 +1,183 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Peer completion job v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "parentThreadId",
+    "peerId",
+    "configPath",
+    "codexBin",
+    "toolName",
+    "request",
+    "status",
+    "createdAt",
+    "updatedAt",
+    "delivery"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "runId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "parentThreadId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "peerId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "configPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "codexBin": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toolName": {
+      "enum": [
+        "peer_message",
+        "peer_capability_message"
+      ]
+    },
+    "request": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "registered",
+        "starting",
+        "sending",
+        "running",
+        "completed",
+        "attention",
+        "dispatch_failed"
+      ]
+    },
+    "workerPid": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "threadId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "turnId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "result": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "attempts"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "pending",
+            "sending",
+            "queued",
+            "failed",
+            "uncertain"
+          ]
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "attemptedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "queuedSubmissionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "running",
+              "completed",
+              "attention",
+              "dispatch_failed"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "request": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "delivery": {
+            "properties": {
+              "status": {
+                "const": "queued"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "delivery": {
+            "required": [
+              "queuedSubmissionId"
+            ],
+            "properties": {
+              "attempts": {
+                "const": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
