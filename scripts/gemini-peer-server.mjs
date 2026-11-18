@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import http from "node:http";
-import { randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual, createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { WebSocketServer } from "ws";
@@ -15,6 +15,11 @@ export const MODELS = ["gemini-3.8-flash-medium", "gemini-3.8-flash-high"];
 const MODES = { "read-only": "plan", "workspace-write": "accept-edits" };
 const MAX_OUTPUT = 4 * 1024 * 1024;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+
+export function startupFailure(error) {
+  const code = ["ENOENT", "EACCES", "EPERM", "EINVAL", "ENOEXEC", "ENOMEM"].includes(error?.code) ? error.code : "UNKNOWN";
+  return `Could not start Antigravity CLI (${code}); check executable, working directory and OS permissions. Authentication has not been tested.`;
+}
 
 export function normalizeConfig(raw = {}, env = process.env, platform = process.platform) {
   const home = env.HOME || env.USERPROFILE || os.homedir();
@@ -78,6 +83,7 @@ export class GeminiPeerServer {
     this.config = config;
     this.env = options.env || process.env;
     this.spawn = options.spawn || spawn;
+    this.terminalGraceMs = options.terminalGraceMs ?? 30000;
     this.clients = new Set();
     this.running = new Map();
     this.closed = false;
@@ -195,12 +201,15 @@ export class GeminiPeerServer {
         state.stderrTail = ((state.stderrTail || "") + chunk).slice(-8192);
         if (/soft.?denied|permission.{0,80}(denied|required)|requires?.{0,40}approval|not (allowed|permitted)/i.test(state.stderrTail)) turn.permissionDenied = true;
       });
-      child.on("error", () => { state.failure = "Could not start Antigravity CLI; check installation and local authentication."; this.finish(state, 1); });
+      child.on("error", error => {
+        state.failure = startupFailure(error);
+        this.finish(state, 1);
+      });
       child.stdin.on("error", () => { this.failProcess(state, "Antigravity input pipe failed; delivery may be uncertain. Do not resend automatically."); });
       child.on("close", (code, signal) => {
         if (state.buffer.trim()) this.consumeLine(state, state.buffer);
-        if (signal) state.failure ||= "Antigravity process was interrupted.";
-        this.finish(state, code);
+        if (signal && !state.terminalCleanup) state.failure ||= "Antigravity process was interrupted.";
+        this.finish(state, code, signal);
       });
       state.timer = setTimeout(() => this.failProcess(state, "Gemini turn exceeded its timeout; inspect saved state before retrying."), this.config.timeoutMs + 5000);
       state.timer.unref();
@@ -208,8 +217,8 @@ export class GeminiPeerServer {
         ? "This is a read-only delegation. Analyze and report; do not edit files or execute mutating commands."
         : "Work only on the explicitly delegated files and commands. Report changes, tests and blockers for parent verification.";
       child.stdin.end(JSON.stringify({ event: "user", message: { content: `${instructions}\nDo not delegate to other agents. Do not send external messages or use API credentials. If permissions block work, report the blocker; never claim the blocked action succeeded.\n\n${message}` } }) + "\n");
-    } catch {
-      state.failure = "Could not start Antigravity CLI.";
+    } catch (error) {
+      state.failure = startupFailure(error);
       this.finish(state, 1);
     }
     return { turn: this.wire(turn) };
@@ -264,6 +273,18 @@ export class GeminiPeerServer {
       state.turn.cliStatus = state.result.status;
       state.turn.text = typeof state.result.response === "string" ? state.result.response : "";
       this.save("turns", state.turn);
+      // A stream result ends the model turn; some Windows CLI sessions fail to exit after EOF.
+      // Bound only that cleanup, preserving any actual process failure and all tool denials.
+      if (this.cleanTerminal(state) && state.turn.executionMode === "read-only") {
+        state.terminalReceivedAt = new Date().toISOString();
+        state.terminalTimer = setTimeout(() => {
+          if (state.done || !this.cleanTerminal(state)) return;
+          state.terminalCleanup = true;
+          state.cleanupRequestedAt = new Date().toISOString();
+          state.child?.kill();
+        }, this.terminalGraceMs);
+        state.terminalTimer.unref();
+      }
     } else {
       this.failProcess(state, "Antigravity emitted an unsupported stream event; inspect CLI compatibility.");
     }
@@ -279,19 +300,39 @@ export class GeminiPeerServer {
     }
   }
 
-  finish(state, exitCode) {
+  cleanTerminal(state) {
+    return state.init && state.result?.status === "SUCCESS" && !state.result.error
+      && state.result.conversation_id === state.thread.conversationId
+      && state.turn.text.trim() && !state.failure && !state.turn.error
+      && !state.turn.permissionDenied && !state.turn.toolError;
+  }
+
+  finish(state, exitCode, signal = null) {
     if (state.done) return;
     state.done = true;
     clearTimeout(state.timer);
     clearTimeout(state.killTimer);
+    clearTimeout(state.terminalTimer);
     const turn = state.turn;
     if (state.failure) turn.error = { message: state.failure };
-    else if (!state.init || !state.result || state.result.status !== "SUCCESS" || exitCode !== 0) {
-      turn.error = { message: "Antigravity did not produce a verified SUCCESS result with a clean exit. Check local CLI authentication, model availability and quota; no retry was sent." };
+    else if (!state.init || !state.result || state.result.status !== "SUCCESS" || state.result.error || (exitCode !== 0 && !(state.terminalCleanup && this.cleanTerminal(state)))) {
+      // Classify known failures without copying provider diagnostics (which may contain credentials).
+      const capacityUnavailable = /UNAVAILABLE \(code 503\): No capacity available for model gemini-3\.8-flash-(high|medium) on the server/.test(String(state.result?.error || ""));
+      const outcome = `CLI status=${turn.cliStatus || "missing"}; process exit=${Number.isInteger(exitCode) ? exitCode : "unknown"}.`;
+      turn.error = { message: capacityUnavailable
+        ? `MODEL_CAPACITY_UNAVAILABLE: Google reported no model capacity (503). ${outcome} The result is not accepted. A resumed conversation can retain an earlier capacity error; inspect the saved outcome before starting a separate, explicitly authorized request. No retry was sent.`
+        : `Antigravity did not produce a verified SUCCESS result with a clean exit. ${outcome} Check local CLI authentication, model availability and quota; no retry was sent.` };
     } else if (turn.permissionDenied || turn.toolError) {
       const details = (turn.toolFailures || []).map(item => `${item.name}${item.requiredPermission ? ` (requires ${item.requiredPermission})` : ""}`).join(", ");
       turn.error = { message: `Antigravity reported denied permissions or a tool failure${details ? `: ${details}` : ""}. The delegated work needs parent review.` };
     } else if (!turn.text.trim()) turn.error = { message: "Antigravity returned an empty response; completion is unverified." };
+    if (state.terminalCleanup && !turn.error) {
+      turn.completionEvidence = {
+        basis: "terminal_result_after_cleanup", resultReceivedAt: state.terminalReceivedAt,
+        cleanupRequestedAt: state.cleanupRequestedAt, exitCode: exitCode ?? null, exitSignal: signal,
+        outputSha256: createHash("sha256").update(turn.text).digest("hex")
+      };
+    }
     turn.status = turn.error ? (["CANCELED", "INTERRUPTED"].includes(turn.cliStatus) ? "interrupted" : "failed") : "completed";
     turn.completedAt = new Date().toISOString();
     state.thread.status = "idle";

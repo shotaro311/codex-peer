@@ -29,6 +29,11 @@ test('history is read only and rejects foreign hosts, origins, fetch contexts an
   for(const method of ['POST','PUT','DELETE'])assert.equal((await f.req('/history/api/threads',{},method)).status,405);
   assert.equal((await f.req('/history/api/threads/../../token')).status,404);
   assert.equal(f.spawns(),0);
+  const usage=await f.req('/history/api/usage');
+  assert.equal(usage.status,200);assert.equal(JSON.parse(usage.body).sample,null);
+  assert.doesNotMatch(usage.body,/authToken|test-only-secret|settingsFile/);
+  assert.equal((await f.req('/history/api/usage/refresh',{},'POST')).status,405);
+  assert.equal((await f.req('/history/api/usage/refresh',{origin:'https://evil.example'},'POST')).status,403);
 });
 test('lists old and new records without secret config, accepts missing input, and skips corrupt files',async t=>{
   const f=await setup(t),thread=f.peer.handleRequest('thread/start',{}).thread;

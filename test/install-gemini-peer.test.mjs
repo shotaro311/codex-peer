@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { afterEach, test } from "node:test";
+import { afterEach, test, mock } from "node:test";
 import { applyInstall, parseArgs, planInstall, renderServiceFiles } from "../scripts/install-gemini-peer.mjs";
 
 const roots = [];
@@ -33,6 +33,18 @@ test("dry-run has concrete changes but creates no private state or token", () =>
   assert.ok(plan.changes.some(change => change.content?.includes("<key>ProgramArguments</key>")));
   assert.equal(fs.existsSync(plan.stateDir), false);
   assert.equal(fs.existsSync(plan.peersPath), false);
+});
+
+test("Windows persists the physical executable path outside the installing app's virtual filesystem", () => {
+  const f = setup("win32");
+  const physical = path.join(f.root, "physical-agy.exe");
+  fs.writeFileSync(physical, "fixture");
+  const original = fs.realpathSync.native;
+  const resolver = mock.method(fs.realpathSync, "native", file => file === f.options.agyBin ? physical : original(file));
+  try {
+    const plan = planInstall(f.options, f.context);
+    assert.equal(plan.config.agyBin, physical);
+  } finally { resolver.mock.restore(); }
 });
 
 test("apply merges only gemini, preserves existing fields and private token, and is idempotent", () => {

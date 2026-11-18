@@ -123,7 +123,9 @@ export function planInstall(options, context = {}) {
   if (!allowedRoots.some(root => { const relative = path.relative(root, cwd); return !relative || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)); })) throw new Error("defaultCwd must be within an allowed root.");
   const model = options.model || MODELS[0];
   if (!MODELS.includes(model)) throw new Error("Only Gemini 3.8 Flash medium/high is supported.");
-  const agyBin = path.resolve(options.agyBin || (platform === "darwin" ? path.join(home, ".local", "bin", "agy") : path.join(env.LOCALAPPDATA || path.join(home, "AppData", "Local"), "agy", "bin", "agy.exe")));
+  const requestedAgyBin = path.resolve(options.agyBin || (platform === "darwin" ? path.join(home, ".local", "bin", "agy") : path.join(env.LOCALAPPDATA || path.join(home, "AppData", "Local"), "agy", "bin", "agy.exe")));
+  // MSIX apps can virtualize LocalAppData; scheduled tasks need the physical path.
+  const agyBin = platform === "win32" ? fs.realpathSync.native(requestedAgyBin) : requestedAgyBin;
   const nodeBin = path.resolve(options.nodeBin || process.execPath);
   const serverScript = path.resolve(options.serverScript || path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist", "gemini-peer-server.mjs"));
   for (const binary of [agyBin, nodeBin, serverScript]) if (!fs.existsSync(binary) || !fs.statSync(binary).isFile()) throw new Error(`Required executable or bundled server is missing: ${binary}`);

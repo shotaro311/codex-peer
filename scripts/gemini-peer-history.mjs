@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { loadCliTranscript } from './gemini-peer-history-data.mjs';
 import { HISTORY_HTML, HISTORY_JS, HISTORY_CSS } from './gemini-peer-history-ui.mjs';
+import { readUsage, refreshUsage } from './gemini-peer-usage.mjs';
 
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const MAX_FILE = 6 * 1024 * 1024;
@@ -44,7 +45,10 @@ export function createHistoryHandler(peer) {
     const host = peer.config.listen.host === '::1' ? `[::1]:${port}` : `127.0.0.1:${port}`;
     if (req.headers.host !== host || (req.headers.origin && req.headers.origin !== `http://${host}`) ||
         (req.headers['sec-fetch-site'] && !['none', 'same-origin'].includes(req.headers['sec-fetch-site']))) {
-      send(403, { error: 'このMacの履歴画面からアクセスしてください。' }); return;
+      send(403, { error: 'この端末の履歴画面からアクセスしてください。' }); return;
+    }
+    if (req.method === 'POST' && req.url === '/history/api/usage/refresh' && req.headers.origin === `http://${host}`) {
+      return send(200, await refreshUsage(peer));
     }
     if (req.method !== 'GET') { send(405, { error: 'この画面は閲覧専用です。' }); return; }
     let url;
@@ -53,6 +57,7 @@ export function createHistoryHandler(peer) {
     if (url.pathname === '/history' || url.pathname === '/history/') return send(200, HISTORY_HTML, 'text/html; charset=utf-8');
     if (url.pathname === '/history/app.js') return send(200, HISTORY_JS, 'text/javascript; charset=utf-8');
     if (url.pathname === '/history/app.css') return send(200, HISTORY_CSS, 'text/css; charset=utf-8');
+    if (url.pathname === '/history/api/usage') return send(200, readUsage(peer));
     if (!url.pathname.startsWith('/history/api/')) return send(404, { error: 'ページが見つかりません。' });
     try {
       const threads = readStates(peer.config.stateDir, 'threads');

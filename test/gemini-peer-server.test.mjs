@@ -8,10 +8,17 @@ import { afterEach, test } from "node:test";
 import { randomUUID } from "node:crypto";
 import WebSocket from "ws";
 import { AjvJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/ajv";
-import { GeminiPeerServer, normalizeConfig, buildAgyArgs, subscriptionEnv, checkSubscriptionSettings } from "../scripts/gemini-peer-server.mjs";
+import { GeminiPeerServer, normalizeConfig, buildAgyArgs, subscriptionEnv, checkSubscriptionSettings, startupFailure } from "../scripts/gemini-peer-server.mjs";
 import { normalizePeerConfig, callPeerMessage, callPeerRead, callPeerHealth } from "../scripts/codex-peer-mcp.mjs";
 
 const resources = [];
+test("startup errors preserve safe OS codes without leaking raw diagnostics or implying authentication failure", () => {
+  const message = startupFailure({ code: "ENOENT", message: "private-token" });
+  assert.match(message, /ENOENT/);
+  assert.match(message, /Authentication has not been tested/);
+  assert.ok(!message.includes("private-token"));
+  assert.match(startupFailure({ code: "private-token" }), /UNKNOWN/);
+});
 const validateState = new AjvJsonSchemaValidator().getValidator(JSON.parse(fs.readFileSync(new URL("../schemas/gemini-peer-state.schema.json", import.meta.url))));
 afterEach(async () => {
   for (const { server, root } of resources.splice(0)) {
@@ -219,6 +226,22 @@ for (const [name, scenario] of [
   assert.equal(result.turnSucceeded, false);
   assert.ok(!JSON.stringify(result).includes("private diagnostic"));
   assert.ok(result.turnError);
+  assert.equal(f.calls.length, 1);
+});
+
+test("capacity ERROR remains failed even with a full answer and exit zero, with safe actionable diagnostics", async () => {
+  const f = await setup(ctx => {
+    const id = randomUUID();
+    ctx.emit({ event: "init", conversation_id: id, init: { model: "gemini-3.8-flash-medium", permission_mode: "request-review" } });
+    ctx.emit({ event: "result", result: { conversation_id: id, status: "ERROR", response: "Complete review",
+      error: "API error (attempt 1): UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-medium on the server private diagnostic" } });
+    ctx.close(0);
+  });
+  const result = await callPeerMessage(f.peerConfig, { peerId: "gemini", message: "Test", waitForCompletion: true, waitWindowSeconds: 2 });
+  assert.equal(result.turnSucceeded, false);
+  assert.match(JSON.stringify(result.turnError), /MODEL_CAPACITY_UNAVAILABLE/);
+  assert.match(JSON.stringify(result.turnError), /process exit=0/);
+  assert.ok(!JSON.stringify(result).includes("private diagnostic"));
   assert.equal(f.calls.length, 1);
 });
 
