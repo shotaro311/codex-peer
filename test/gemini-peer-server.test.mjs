@@ -85,7 +85,7 @@ test("pins model and execution mode, resumes the exact conversation, and never s
   assert.ok(!args.includes("--dangerously-skip-permissions"));
   assert.equal(buildAgyArgs(config, null, "workspace-write")[7], "accept-edits");
   assert.throws(() => buildAgyArgs(config, "../../bad"), /conversation ID/);
-  assert.throws(() => normalizeConfig({ ...config, model: "fallback-model" }), /Only Gemini/);
+  assert.throws(() => normalizeConfig({ ...config, model: "fallback-model" }), /Only these Gemini models are supported/);
   assert.throws(() => normalizeConfig({ ...config, listen: { host: "0.0.0.0" } }), /loopback/);
 });
 
@@ -243,6 +243,32 @@ test("capacity ERROR remains failed even with a full answer and exit zero, with 
   assert.match(JSON.stringify(result.turnError), /process exit=0/);
   assert.ok(!JSON.stringify(result).includes("private diagnostic"));
   assert.equal(f.calls.length, 1);
+});
+
+test("Gemini 4 Hydrogen is an accepted pinned model and unknown models stay rejected", () => {
+  for (const model of ["gemini-4-hydrogen-medium", "gemini-4-hydrogen-high"]) {
+    const { config } = fixture({ model });
+    assert.equal(config.model, model);
+    const args = buildAgyArgs(config, null);
+    assert.equal(args[args.indexOf("--model") + 1], model);
+  }
+  const { config } = fixture();
+  assert.throws(() => normalizeConfig({ ...config, model: "gemini-4-hydrogen-ultra" }), /Only these Gemini models are supported/);
+});
+
+test("capacity ERROR is classified for the Hydrogen model too", async () => {
+  const model = "gemini-4-hydrogen-high";
+  const f = await setup(ctx => {
+    const id = randomUUID();
+    ctx.emit({ event: "init", conversation_id: id, init: { model, permission_mode: "request-review" } });
+    ctx.emit({ event: "result", result: { conversation_id: id, status: "ERROR", response: "Complete review",
+      error: `API error (attempt 1): UNAVAILABLE (code 503): No capacity available for model ${model} on the server private diagnostic` } });
+    ctx.close(0);
+  }, { model });
+  const result = await callPeerMessage(f.peerConfig, { peerId: "gemini", message: "Test", waitForCompletion: true, waitWindowSeconds: 2 });
+  assert.equal(result.turnSucceeded, false);
+  assert.match(JSON.stringify(result.turnError), /MODEL_CAPACITY_UNAVAILABLE/);
+  assert.ok(!JSON.stringify(result).includes("private diagnostic"));
 });
 
 test("survives client disconnect, saves completion, and rejects concurrent turn and cwd escape", async () => {

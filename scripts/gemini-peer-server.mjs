@@ -11,7 +11,7 @@ import { WebSocketServer } from "ws";
 import { createHistoryHandler } from "./gemini-peer-history.mjs";
 
 export const VERSION = "0.1.0";
-export const MODELS = ["gemini-3.8-flash-medium", "gemini-3.8-flash-high"];
+export const MODELS = ["gemini-3.8-flash-medium", "gemini-3.8-flash-high", "gemini-4-hydrogen-medium", "gemini-4-hydrogen-high"];
 const MODES = { "read-only": "plan", "workspace-write": "accept-edits" };
 const MAX_OUTPUT = 4 * 1024 * 1024;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -39,7 +39,7 @@ export function normalizeConfig(raw = {}, env = process.env, platform = process.
     maxConcurrentTurns: raw.maxConcurrentTurns ?? 2,
     listen: { host: raw.listen?.host || "127.0.0.1", port: raw.listen?.port ?? 17848 }
   };
-  if (!MODELS.includes(config.model)) throw new Error("Only Gemini 3.8 Flash medium/high models are supported.");
+  if (!MODELS.includes(config.model)) throw new Error(`Only these Gemini models are supported: ${MODELS.join(", ")}.`);
   if (!MODES[config.executionMode]) throw new Error("Invalid executionMode.");
   if (!["127.0.0.1", "::1"].includes(config.listen.host)) throw new Error("Gemini Peer must listen on loopback; use an authenticated tunnel for remote access.");
   if (!Number.isInteger(config.listen.port) || config.listen.port < 0 || config.listen.port > 65535) throw new Error("Invalid listen port.");
@@ -317,7 +317,8 @@ export class GeminiPeerServer {
     if (state.failure) turn.error = { message: state.failure };
     else if (!state.init || !state.result || state.result.status !== "SUCCESS" || state.result.error || (exitCode !== 0 && !(state.terminalCleanup && this.cleanTerminal(state)))) {
       // Classify known failures without copying provider diagnostics (which may contain credentials).
-      const capacityUnavailable = /UNAVAILABLE \(code 503\): No capacity available for model gemini-3\.8-flash-(high|medium) on the server/.test(String(state.result?.error || ""));
+      const capacityModel = /UNAVAILABLE \(code 503\): No capacity available for model (\S+) on the server/.exec(String(state.result?.error || ""))?.[1];
+      const capacityUnavailable = MODELS.includes(capacityModel);
       const outcome = `CLI status=${turn.cliStatus || "missing"}; process exit=${Number.isInteger(exitCode) ? exitCode : "unknown"}.`;
       turn.error = { message: capacityUnavailable
         ? `MODEL_CAPACITY_UNAVAILABLE: Google reported no model capacity (503). ${outcome} The result is not accepted. A resumed conversation can retain an earlier capacity error; inspect the saved outcome before starting a separate, explicitly authorized request. No retry was sent.`

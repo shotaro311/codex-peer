@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const LABEL = "com.codex-peer.gemini";
 const TASK_NAME = "CodexGeminiPeer";
-const MODELS = ["gemini-3.8-flash-medium", "gemini-3.8-flash-high"];
+const MODELS = ["gemini-3.8-flash-medium", "gemini-3.8-flash-high", "gemini-4-hydrogen-medium", "gemini-4-hydrogen-high"];
 const hash = text => createHash("sha256").update(text).digest("hex");
 const xml = text => String(text).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[char]);
 const ps = text => `'${String(text).replaceAll("'", "''")}'`;
@@ -122,7 +122,7 @@ export function planInstall(options, context = {}) {
   if (!fs.statSync(cwd).isDirectory() || allowedRoots.some(root => !fs.statSync(root).isDirectory())) throw new Error("Delegation roots and cwd must be existing directories.");
   if (!allowedRoots.some(root => { const relative = path.relative(root, cwd); return !relative || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)); })) throw new Error("defaultCwd must be within an allowed root.");
   const model = options.model || MODELS[0];
-  if (!MODELS.includes(model)) throw new Error("Only Gemini 3.8 Flash medium/high is supported.");
+  if (!MODELS.includes(model)) throw new Error(`Only these Gemini models are supported: ${MODELS.join(", ")}.`);
   const requestedAgyBin = path.resolve(options.agyBin || (platform === "darwin" ? path.join(home, ".local", "bin", "agy") : path.join(env.LOCALAPPDATA || path.join(home, "AppData", "Local"), "agy", "bin", "agy.exe")));
   // MSIX apps can virtualize LocalAppData; scheduled tasks need the physical path.
   const agyBin = platform === "win32" ? fs.realpathSync.native(requestedAgyBin) : requestedAgyBin;
