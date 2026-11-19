@@ -3,6 +3,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const bundlePath = path.resolve("dist", "codex-peer-mcp.mjs");
-const source = fs.readFileSync(bundlePath, "utf8");
-fs.writeFileSync(bundlePath, source.replace(/[ \t]+$/gm, ""), "utf8");
+for (const name of ["codex-peer-mcp.mjs", "gemini-peer-server.mjs"]) {
+  const bundlePath = path.resolve("dist", name);
+  const source = fs.readFileSync(bundlePath, "utf8");
+  fs.writeFileSync(bundlePath, source.replace(/[ \t]+$/gm, ""), "utf8");
+}

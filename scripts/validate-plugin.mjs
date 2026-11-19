@@ -27,7 +27,8 @@ for (const required of [
   bundleNormalizerPath,
   watchdogPath,
   windowsWatchdogLauncherPath,
-  windowsWatchdogInstallerPath
+  windowsWatchdogInstallerPath,
+  ...["dist/gemini-peer-server.mjs", "scripts/install-gemini-peer.mjs", "scripts/peer-completion-jobs.mjs", "scripts/peer-completion-delivery.mjs", "skills/gemini-peer/SKILL.md", "schemas/completion-job.schema.json", "schemas/gemini-peer-state.schema.json"].map(filename => path.join(root, filename))
 ]) {
   if (!fs.existsSync(required)) {
     throw new Error(`Missing required file: ${required}`);

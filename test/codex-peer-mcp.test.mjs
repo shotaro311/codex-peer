@@ -168,6 +168,18 @@ describe("turn collector", () => {
 });
 
 describe("peer tools", () => {
+  it("returns pending approval as attention without approving or polling", async () => {
+    const fake = await startFakeAppServer({ completeDelayMs: null, attention: true });
+    const result = await callPeerMessage(configFor(fake.url),
+      { peerId: "windows", message: "Run a scoped check.", waitForCompletion: true },
+      { completionWaitMs: 5000 });
+    assert.equal(result.turnCompleted, false);
+    assert.equal(result.needsUserCheck, true);
+    assert.equal(result.attention.requestMethod, "item/commandExecution/requestApproval");
+    assert.equal(result.attention.requestId, "approval-1");
+    assert.equal(fake.state.inputs.length, 1);
+  });
+
   it("checks peer health", async () => {
     const fake = await startFakeAppServer();
     const config = configFor(fake.url);
@@ -536,7 +548,8 @@ async function startFakeAppServer(options = {}) {
     finalStatus: options.finalStatus || "completed",
     turnError: options.turnError || null,
     resumeCalls: 0,
-    inputs: []
+    inputs: [],
+    attention: options.attention
   };
   const server = new WebSocketServer({ port: 0 });
   servers.push(server);
@@ -609,6 +622,10 @@ function handleFakeMessage(socket, state, message) {
       socket.send(JSON.stringify({
         method: "item/agentMessage/delta",
         params: { threadId: thread.id, turnId: turn.id, itemId: "agent-1", delta: state.reply }
+      }));
+      if (state.attention) socket.send(JSON.stringify({
+        id: "approval-1", method: "item/commandExecution/requestApproval",
+        params: { threadId: thread.id, turnId: turn.id, command: "private command" }
       }));
     }, 0);
     if (state.completeDelayMs !== null) {

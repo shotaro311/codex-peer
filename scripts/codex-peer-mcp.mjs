@@ -3,13 +3,14 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { pathToFileURL, fileURLToPath } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import WebSocket from "ws";
+import { dispatchCompletionJob, readCompletionJob, runCompletionJob } from "./peer-completion-jobs.mjs";
 
-export const VERSION = "0.2.1";
+export const VERSION = "0.3.0";
 export const DEFAULT_MAX_RESPONSE_CHARS = 8000;
 export const DEFAULT_PROGRESS_CHECK_AFTER_TURNS = 5;
 export const DEFAULT_INITIAL_WAIT_MS = 3000;
@@ -53,6 +54,9 @@ const TOOL_DEFINITIONS = [
         threadId: { type: "string" },
         cwd: { type: "string" },
         startNewThread: { type: "boolean" },
+        executionMode: { type: "string", enum: ["read-only", "workspace-write"], description: "Gemini peer execution mode; omitted means read-only for Gemini." },
+        notifyParent: { type: "boolean", description: "Run in a background process and deliver one completion notice to the parent Codex queue. Do not poll after dispatch." },
+        parentThreadId: { type: "string", description: "Calling Codex task ID for completion delivery; defaults to CODEX_THREAD_ID." },
         maxResponseChars: { type: "number" },
         waitForCompletion: {
           type: "boolean",
@@ -92,11 +96,21 @@ const TOOL_DEFINITIONS = [
         threadId: { type: "string" },
         cwd: { type: "string" },
         startNewThread: { type: "boolean" },
+        notifyParent: { type: "boolean" },
+        parentThreadId: { type: "string" },
         maxResponseChars: { type: "number" },
         waitWindowSeconds: { type: "number" }
       },
       required: ["peerId", "capability", "risk", "preflight", "message"],
       additionalProperties: false
+    }
+  },
+  {
+    name: "peer_job",
+    description: "Read a saved background peer result after its completion notice, or diagnose a lost worker. Does not start or resend work.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+    inputSchema: {
+      type: "object", properties: { runId: { type: "string" } }, required: ["runId"], additionalProperties: false
     }
   },
   {
@@ -215,6 +229,7 @@ export function normalizePeerConfig(config) {
   }
   return {
     peers: config.peers,
+    completion: config.completion || {},
     defaults: {
       maxResponseChars: numberOrDefault(config.defaults?.maxResponseChars, DEFAULT_MAX_RESPONSE_CHARS),
       progressCheckAfterTurns: numberOrDefault(
@@ -340,10 +355,12 @@ export class AppServerWsClient {
       const onError = error => {
         clearTimeout(timeout);
         cleanup();
+        ws.on("error", () => {});
         reject(error);
       };
       const timeout = setTimeout(() => {
         cleanup();
+        ws.on("error", () => {});
         ws.terminate?.();
         reject(new Error("Timed out connecting to peer Codex app-server."));
       }, this.connectTimeoutMs);
@@ -440,6 +457,19 @@ export class AppServerWsClient {
       return;
     }
 
+    if (typeof message.method === "string" && "id" in message) {
+      // Preserve the request as attention data; never approve it on behalf of the parent.
+      for (const handler of this.notificationHandlers) {
+        handler("peer/attentionRequired", {
+          threadId: message.params?.threadId,
+          turnId: message.params?.turnId,
+          requestId: message.id,
+          requestMethod: message.method
+        });
+      }
+      return;
+    }
+
     if (typeof message.method === "string" && !("id" in message)) {
       for (const handler of this.notificationHandlers) {
         handler(message.method, message.params || {});
@@ -509,8 +539,11 @@ export async function callPeerMessage(config, args, options = {}) {
     const collector = createTurnCollector(threadId, maxResponseChars);
     unsubscribe = client.onNotification((method, params) => collector.handle(method, params));
 
+    await options.onBeforeTurnStart?.({ threadId });
+
     const response = await client.request("turn/start", {
       threadId,
+      ...(args.executionMode ? { executionMode: args.executionMode } : {}),
       input: [{
         type: "text",
         text: args.message,
@@ -518,6 +551,7 @@ export async function callPeerMessage(config, args, options = {}) {
       }]
     });
     collector.turnId = extractTurnId(response) || collector.turnId;
+    await options.onTurnStarted?.({ threadId, turnId: collector.turnId });
     recorder = new TranscriptRecorder(peer.id, threadId, collector.turnId, {
       enabled: config.defaults.recordTranscripts
     });
@@ -554,8 +588,11 @@ export async function callPeerMessage(config, args, options = {}) {
       finalText: terminal ? finalText : undefined,
       latestText: terminal ? undefined : finalText,
       transcriptPath: recorder.path,
-      needsUserCheck: needsUserCheckForTurns(turnCount, config.defaults.progressCheckAfterTurns),
-      warnings: turnWarnings(terminal, succeeded, turnStatus, "Peer turn is still running. Use peer_wait_until_complete or peer_wait later.")
+      needsUserCheck: !!collector.attention || needsUserCheckForTurns(turnCount, config.defaults.progressCheckAfterTurns),
+      ...(collector.attention ? { attention: collector.attention } : {}),
+      warnings: collector.attention
+        ? ["Peer requested approval or input. No approval was sent; open the existing peer task to resolve it. Do not resend the work."]
+        : turnWarnings(terminal, succeeded, turnStatus, "Peer turn is still running. Use peer_wait_until_complete or peer_wait later.")
     };
   } finally {
     unsubscribe?.();
@@ -588,7 +625,13 @@ export async function callPeerCapabilityMessage(config, args, options = {}) {
       maxResponseChars: args.maxResponseChars,
       waitForCompletion: true,
       waitWindowSeconds: args.waitWindowSeconds
-    }, options);
+    }, {
+      ...options,
+      onTurnStarted: async ids => {
+        lock.update(ids);
+        await options.onTurnStarted?.(ids);
+      }
+    });
     lock.update({ threadId: result.threadId, turnId: result.turnId });
     if (result.turnCompleted) {
       lock.release();
@@ -825,6 +868,13 @@ export function createMcpServer(options = {}) {
 }
 
 export async function callToolByName(config, name, args, options = {}) {
+  if (name === "peer_job") return readCompletionJob(args.runId, config.completion, options);
+  if (["peer_message", "peer_capability_message"].includes(name)
+      && (args.notifyParent ?? config.completion?.enabled) && !options.completionWorker) {
+    return dispatchCompletionJob(config, name, args, {
+      ...options, workerEntrypoint: options.workerEntrypoint || fileURLToPath(import.meta.url)
+    });
+  }
   if (name === "peer_health") return callPeerHealth(config, args, options);
   if (name === "peer_message") return callPeerMessage(config, args, options);
   if (name === "peer_capability_message") return callPeerCapabilityMessage(config, args, options);
@@ -981,6 +1031,7 @@ export function createTurnCollector(threadId, maxBufferChars = DEFAULT_MAX_RESPO
     turnId: null,
     text: "",
     completed: false,
+    attention: null,
     completedTurn: null,
     onEvent: null,
     waiters: [],
@@ -990,6 +1041,13 @@ export function createTurnCollector(threadId, maxBufferChars = DEFAULT_MAX_RESPO
       }
       const event = sanitizeTranscriptEvent(method, params);
       this.onEvent?.(event);
+
+      if (method === "peer/attentionRequired") {
+        if (this.turnId && params.turnId && this.turnId !== params.turnId) return;
+        this.attention = { requestId: params.requestId, requestMethod: params.requestMethod };
+        for (const resolve of this.waiters.splice(0)) resolve(false);
+        return;
+      }
 
       if (method === "turn/started") {
         this.turnId = params.turn?.id || this.turnId;
@@ -1029,6 +1087,7 @@ export function createTurnCollector(threadId, maxBufferChars = DEFAULT_MAX_RESPO
       if (this.completed) {
         return Promise.resolve(true);
       }
+      if (this.attention) return Promise.resolve(false);
       return new Promise(resolve => {
         const timeout = setTimeout(() => {
           const index = this.waiters.indexOf(resolve);
@@ -1270,6 +1329,13 @@ function safeErrorMessage(error) {
 }
 
 async function main() {
+  if (process.argv[2] === "--completion-job") {
+    await runCompletionJob(process.argv[3], {
+      loadConfig: loadPeerConfig,
+      run: (config, name, args, options) => callToolByName(config, name, args, { ...options, completionWorker: true })
+    });
+    return;
+  }
   const server = createMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);

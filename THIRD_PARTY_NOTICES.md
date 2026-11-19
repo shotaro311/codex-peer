@@ -1,5 +1,10 @@
 # Third-party notices
 
+The optional Gemini usage refresh uses unbundled `node-pty` 1.1.0 (MIT),
+including its shipped native components, and `node-addon-api` 7.1.1 (MIT).
+When deploying them, retain the complete packages and their LICENSE and
+third-party notices under `node_modules`; the native files are platform-specific.
+
 `dist/codex-peer-mcp.mjs` bundles the following packages:
 
 - `@modelcontextprotocol/sdk` 1.29.0 — MIT
