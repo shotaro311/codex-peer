@@ -11,7 +11,7 @@ import { WebSocketServer } from "ws";
 import { createHistoryHandler } from "./gemini-peer-history.mjs";
 
 export const VERSION = "0.1.0";
-export const MODELS = ["gemini-3.8-flash-medium", "gemini-3.8-flash-high", "gemini-4-hydrogen-medium", "gemini-4-hydrogen-high"];
+export const MODELS = ["gemini-3.8-flash-medium", "gemini-3.8-flash-high", "gemini-4-hydrogen-medium", "gemini-4-hydrogen-high", "gemini-4-neon-medium", "gemini-4-neon-high"];
 const MODES = { "read-only": "plan", "workspace-write": "accept-edits" };
 const MAX_OUTPUT = 4 * 1024 * 1024;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;

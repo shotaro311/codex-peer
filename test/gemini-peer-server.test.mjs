@@ -245,8 +245,8 @@ test("capacity ERROR remains failed even with a full answer and exit zero, with 
   assert.equal(f.calls.length, 1);
 });
 
-test("Gemini 4 Hydrogen is an accepted pinned model and unknown models stay rejected", () => {
-  for (const model of ["gemini-4-hydrogen-medium", "gemini-4-hydrogen-high"]) {
+test("Gemini 4 Hydrogen and Neon are accepted pinned models and unknown models stay rejected", () => {
+  for (const model of ["gemini-4-hydrogen-medium", "gemini-4-hydrogen-high", "gemini-4-neon-medium", "gemini-4-neon-high"]) {
     const { config } = fixture({ model });
     assert.equal(config.model, model);
     const args = buildAgyArgs(config, null);

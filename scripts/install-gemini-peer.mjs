@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const LABEL = "com.codex-peer.gemini";
 const TASK_NAME = "CodexGeminiPeer";
-const MODELS = ["gemini-3.8-flash-medium", "gemini-3.8-flash-high", "gemini-4-hydrogen-medium", "gemini-4-hydrogen-high"];
+const MODELS = ["gemini-3.8-flash-medium", "gemini-3.8-flash-high", "gemini-4-hydrogen-medium", "gemini-4-hydrogen-high", "gemini-4-neon-medium", "gemini-4-neon-high"];
 const hash = text => createHash("sha256").update(text).digest("hex");
 const xml = text => String(text).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[char]);
 const ps = text => `'${String(text).replaceAll("'", "''")}'`;
